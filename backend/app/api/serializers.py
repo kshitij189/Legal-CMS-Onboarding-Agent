@@ -23,6 +23,7 @@ def schema_summary(schema: SchemaDefinition) -> SchemaVersionSummary:
         field_count=len(schema.fields),
         target_config_revision=schema.target_config_revision,
         original_filename=schema.original_filename,
+        created_by=schema.created_by.username if schema.created_by else None,
         created_at=schema.created_at,
     )
 
@@ -51,6 +52,7 @@ def project_out(db: Session, project: OnboardingProject) -> ProjectOut:
         firm=FirmOut.model_validate(project.firm),
         connector=ConnectorOut.model_validate(project.connector),
         name=project.name,
+        created_by=project.created_by.username if project.created_by else None,
         stage=stage,
         latest_source_schema=schema_summary(source) if source else None,
         latest_target_schema=schema_summary(target) if target else None,

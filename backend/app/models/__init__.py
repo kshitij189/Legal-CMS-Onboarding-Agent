@@ -1,5 +1,5 @@
-"""Persistence models (blueprint §11). Phase 2 tables: firms, cms_connectors, onboarding_projects,
-schema_definitions, field_definitions.
+"""Persistence models (blueprint §11): firms, users, auth_tokens, cms_connectors,
+onboarding_projects, schema_definitions, field_definitions.
 
 Tenant integrity: every child row carries firm_id, and composite foreign keys on (firm_id, id) make
 it impossible to attach a project to another firm's connector, or a schema to another firm's
@@ -24,6 +24,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
+from app.permissions import Role
 from app.schemas.normalized import (
     DataType,
     NormalizedField,
@@ -53,6 +54,41 @@ class Firm(Base):
     timezone: Mapped[str] = mapped_column(String(64), default="UTC")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class User(Base):
+    """A reviewer account (decision D5). Belongs to exactly one firm."""
+
+    __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint(_in("role", Role), name="ck_users_role"),
+        UniqueConstraint("firm_id", "id", name="uq_users_firm_id_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    firm_id: Mapped[int] = mapped_column(ForeignKey("firms.id", ondelete="CASCADE"), index=True)
+    username: Mapped[str] = mapped_column(String(100), unique=True)
+    display_name: Mapped[str] = mapped_column(String(200))
+    password_hash: Mapped[str] = mapped_column(String(300))
+    role: Mapped[str] = mapped_column(String(32))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    firm: Mapped[Firm] = relationship(lazy="joined")
+
+
+class AuthToken(Base):
+    """Bearer tokens. Only the SHA-256 hash is stored."""
+
+    __tablename__ = "auth_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    user: Mapped[User] = relationship(lazy="joined")
 
 
 class CMSConnector(Base):
@@ -88,16 +124,25 @@ class OnboardingProject(Base):
             name="fk_onboarding_projects_connector_same_firm",
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            ["firm_id", "created_by_id"],
+            ["users.firm_id", "users.id"],
+            name="fk_onboarding_projects_creator_same_firm",
+            ondelete="RESTRICT",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     firm_id: Mapped[int] = mapped_column(ForeignKey("firms.id", ondelete="CASCADE"), index=True)
     connector_id: Mapped[int] = mapped_column(Integer)
     name: Mapped[str] = mapped_column(String(200))
+    # Null only for rows created before authentication existed (migration 0002).
+    created_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     firm: Mapped[Firm] = relationship(lazy="joined")
     connector: Mapped[CMSConnector] = relationship(lazy="joined", viewonly=True)
+    created_by: Mapped[User | None] = relationship(lazy="joined", viewonly=True)
 
 
 class SchemaDefinition(Base):
@@ -114,6 +159,12 @@ class SchemaDefinition(Base):
             ["onboarding_projects.firm_id", "onboarding_projects.id"],
             name="fk_schema_definitions_project_same_firm",
             ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["firm_id", "created_by_id"],
+            ["users.firm_id", "users.id"],
+            name="fk_schema_definitions_creator_same_firm",
+            ondelete="RESTRICT",
         ),
     )
 
@@ -135,11 +186,14 @@ class SchemaDefinition(Base):
     original_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Target schemas: the CMS configuration revision observed when this version was captured.
     target_config_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Who uploaded / inspected. Null only for rows created before authentication existed.
+    created_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     fields: Mapped[list["FieldDefinition"]] = relationship(
         order_by="FieldDefinition.position", cascade="all, delete-orphan", lazy="selectin"
     )
+    created_by: Mapped[User | None] = relationship(lazy="joined", viewonly=True)
 
     def to_normalized(self) -> NormalizedSchema:
         return NormalizedSchema(

@@ -207,15 +207,33 @@ docker compose exec mock-cms alembic downgrade base ; docker compose exec mock-c
 # Backend (separate venv; from backend/). Needs onboarding + onboarding_test DBs (init script).
 cd backend; py -3.13 -m venv .venv; .\.venv\Scripts\python -m pip install -e ".[dev]"
 .\.venv\Scripts\python -m alembic upgrade head      # migrate onboarding DB
+.\.venv\Scripts\python -m app.seed                  # demo firms A/B/C, reviewers, connectors
 .\.venv\Scripts\python -m uvicorn app.main:app --port 8200   # backend API (http://localhost:8200/docs)
 .\.venv\Scripts\python -m pytest                    # all tests; live_cms tests need mock CMS on :8100
 .\.venv\Scripts\python -m pytest -m "not live_cms"  # without the running mock CMS
 .\.venv\Scripts\python -m ruff check . ; .\.venv\Scripts\python -m mypy app tests
 ```
 
-Backend connector credentials come from `ONBOARDING_SECRET_<CREDENTIAL_REF>_USERNAME/_PASSWORD`
-(see `.env.example`); set them in the shell — there is no `.env` loader. On a volume created before
-Phase 2, create the backend DBs once:
+Whole stack in containers (backend migrates on start; seed once; connectors use `http://mock-cms:8100`):
+
+```powershell
+docker compose up -d --build                         # postgres, mock-cms (:8100), backend (:8200)
+docker compose exec mock-cms python -m app.seed ; docker compose exec backend python -m app.seed
+# Optional tracing UI (http://localhost:16686):
+$env:OTEL_TRACES_EXPORTER="otlp"; docker compose --profile observability up -d jaeger backend
+```
+
+Secrets and config: the git-ignored root `.env` (holds `GEMINI_API_KEY`, `GROQ_API_KEY`) is read by
+Compose (`env_file`) and by the backend's local runs (`app.config.load_dotenv`, never overriding
+variables already set). Connector credentials come from
+`ONBOARDING_SECRET_<CREDENTIAL_REF>_USERNAME/_PASSWORD`. Never print or log key values.
+
+Backend auth (D5): every endpoint except `POST /api/v1/firms` (sign-up) and `POST /api/v1/auth/token`
+needs `Authorization: Bearer <token>`. Demo reviewers: `<a|b|c>.admin` (firm_admin) and
+`<a|b|c>.specialist` (integration_specialist), password `ONBOARDING_SEED_PASSWORD`
+(default `demo-password`). Users see only their own firm; other firms' resources return 404.
+
+On a volume created before Phase 2, create the backend DBs once:
 `docker compose exec postgres psql -U lcms -d lcms -c "CREATE DATABASE onboarding;" -c "CREATE DATABASE onboarding_test;"`
 
 Mock CMS demo logins (synthetic): `<a|b|c>.<admin|integration|intake|staff>` with password
@@ -223,7 +241,7 @@ Mock CMS demo logins (synthetic): `<a|b|c>.<admin|integration|intake|staff>` wit
 
 Ports in use on this machine by an unrelated project (`legal_intake_agent`): 5433 (Postgres),
 7233/8233 (Temporal), 7880–7882 (LiveKit). Do not bind those; this project uses 5434 (Postgres),
-8100 (mock CMS) and 8200 (backend).
+8100 (mock CMS), 8200 (backend), 16686/4318 (Jaeger, opt-in profile).
 
 Keep this section current as phases add commands.
 
@@ -294,7 +312,10 @@ Keep this section current as phases add commands.
 
 - Structured JSON logs with correlation IDs (project, run, step).
 - OpenTelemetry traces for API requests, adapter calls, LLM calls and workflow activities (introduced
-  with the backend; do not add to the mock CMS beyond basic logging).
+  with the backend; do not add to the mock CMS beyond basic logging). Implemented in
+  `backend/app/observability/tracing.py`: FastAPI, SQLAlchemy and httpx are auto-instrumented; wrap
+  meaningful domain steps in named spans (e.g. `inspect_target`); every JSON log line carries
+  `trace_id`. Never put request bodies, credentials, prompts with PII, or SQL parameter values on spans.
 - Optional self-hosted Langfuse for LLM traces — only if the user opts in.
 
 ## 14. Testing and evaluation

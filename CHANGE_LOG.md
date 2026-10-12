@@ -177,3 +177,60 @@ dev: pytest 9.1.1, ruff 0.17.0, mypy 2.4.0, types-jsonschema.
 - No backend container; OpenTelemetry tracing not yet added.
 - In the manual run, my PowerShell health-poll loop reported the server as not up although every
   subsequent request succeeded — a script quirk, not an application issue.
+
+### 2026-10-13 — Phase 2 follow-up: limitations closed (authentication, container, tracing)
+
+Requested by the user after Phase 2. Decisions D5 (reviewer login) and D6 (LLM keys via `.env`)
+confirmed.
+
+**Added / changed**
+- Root `.env` created (git-ignored) with empty `GEMINI_API_KEY` / `GROQ_API_KEY`; the backend
+  loads it for local runs (`app.config.load_dotenv`, never overriding existing variables) and
+  Compose passes it to the backend container (`env_file`, optional).
+- Reviewer authentication (D5): `users`, `auth_tokens` (migration `0002`), `app/security.py`
+  (scrypt, hashed tokens), `app/permissions.py` (`firm_admin`, `integration_specialist`),
+  `app/domain/auth_service.py`, `app/api/deps.py`, `app/api/auth.py` (`/auth/token`, `/auth/logout`,
+  `/auth/me`). API reshaped around the caller's firm: `POST /firms` is sign-up (firm + first admin,
+  `ONBOARDING_ALLOW_SIGNUP`), `GET /firm`, `GET|POST /users`, `GET|POST /connectors`; projects and
+  schemas are looked up within the caller's firm (other firms → 404). `created_by_id` on projects
+  and schema versions with same-firm composite FKs (nullable only for pre-auth rows).
+- `app/seed.py`: demo firms A/B/C, `<x>.admin` / `<x>.specialist`, one mock CMS connector each.
+- Tracing: `app/observability/tracing.py` (FastAPI, SQLAlchemy, httpx instrumentation; exporters
+  none/console/otlp), domain spans `normalize_source_schema` and `inspect_target`, `trace_id` in
+  JSON logs.
+- Containers: `backend/Dockerfile` + `.dockerignore`; Compose `backend` (:8200) and opt-in
+  `jaeger` (profile `observability`, :16686 UI, :4318 OTLP).
+- `.env.example`, CLAUDE.md (commands, auth, secrets, observability rules) updated.
+
+**Decisions and rationale**
+- *Users belong to one firm* — tenant isolation follows from the authenticated user; a resource of
+  another firm is reported as not found so its existence is not revealed.
+- *Firm creation via sign-up* (firm + first firm admin in one transaction) — keeps exactly the two
+  approved roles while allowing the blueprint's "create a firm in the dashboard"; switchable off.
+- *Specialists cannot manage users, connectors or create projects*; they can upload schemas and
+  inspect the target. Mapping approval will be added to their role in Phase 3.
+- *Stdlib `.env` loader instead of python-dotenv* — a dozen lines, no dependency.
+- *Jaeger behind a Compose profile* — tracing export is verifiable locally without adding an
+  always-on service; default exporter is `none`.
+- *httpx tracing is tested against a real local HTTP server* — instrumentation wraps the real
+  network transport, not test `MockTransport`s.
+
+**Dependencies added (backend)**
+opentelemetry-api / -sdk / -exporter-otlp-proto-http 1.45.1, opentelemetry-instrumentation-fastapi /
+-sqlalchemy / -httpx 0.66b1 (approved "OpenTelemetry" layer). Image: `jaegertracing/all-in-one:1.62.0`
+(opt-in).
+
+**Tests executed (actual results)**
+- `backend: pytest` — 70 passed (0 skipped). `mock-cms: pytest` — 75 passed.
+- ruff check / format: clean; `mypy --strict app tests` (51 files): clean.
+- Mutation check: firm filter in `get_project` and permission check in `require()` disabled →
+  2 failures; restored → 70 passed.
+- Containers + Jaeger walkthrough — results in `IMPLEMENTATION_PROGRESS.md` (Phase 2 follow-up).
+
+**Bugs fixed**
+- First tracing test used `MockTransport`, which httpx instrumentation does not wrap — replaced
+  with a real local server (test bug, not product bug).
+
+**Known issues / limitations**
+- Ground-truth expected mappings remain author-labelled; only a human review can reduce that.
+- Dev `onboarding` DB was reset and reseeded; rows from the Phase 2 manual walkthrough were removed.

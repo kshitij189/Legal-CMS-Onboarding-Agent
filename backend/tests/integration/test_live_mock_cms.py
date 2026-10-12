@@ -16,7 +16,7 @@ from app.integrations.mock_cms import MockCMSAdapter
 from app.integrations.secrets import Credentials
 from app.schemas.normalized import NormalizedSchema
 from tests.conftest import FIXTURES, SOURCE_FILES, read_fixture
-from tests.integration.conftest import create_project
+from tests.integration.conftest import setup_firm
 
 BASE_URL = os.environ.get("MOCK_CMS_BASE_URL", "http://localhost:8100")
 PASSWORD = os.environ.get("MOCK_CMS_SEED_PASSWORD", "demo-password")
@@ -60,19 +60,22 @@ def test_full_phase2_flow_for_each_firm(
     prefix = f"ONBOARDING_SECRET_{firm.upper().replace('-', '_')}_MOCK_CMS"
     monkeypatch.setenv(f"{prefix}_USERNAME", f"{firm[-1]}.integration")
     monkeypatch.setenv(f"{prefix}_PASSWORD", PASSWORD)
-    ids = create_project(client, firm)
-    url = f"/api/v1/onboarding-projects/{ids['project_id']}"
+    ctx = setup_firm(client, firm)
+    url = f"/api/v1/onboarding-projects/{ctx.project_id}"
 
     fmt, path = SOURCE_FILES[firm]
     source = client.post(
-        f"{url}/source-schema", json={"format": fmt, "content": read_fixture(path)}
+        f"{url}/source-schema",
+        headers=ctx.admin,
+        json={"format": fmt, "content": read_fixture(path)},
     )
     assert source.status_code == 201, source.text
-    target = client.post(f"{url}/inspect-target")
+    target = client.post(f"{url}/inspect-target", headers=ctx.specialist)
     assert target.status_code == 201, target.text
     assert target.json()["schema_version"]["extensions"]["tenant"] == firm
+    assert target.json()["schema_version"]["created_by"] == f"{firm}.specialist"
 
-    project = client.get(url).json()
+    project = client.get(url, headers=ctx.specialist).json()
     assert project["stage"] == "ready_for_mapping"
     assert project["latest_source_schema"]["field_count"] == 10
     assert project["latest_target_schema"]["field_count"] == 10

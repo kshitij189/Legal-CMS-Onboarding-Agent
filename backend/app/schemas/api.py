@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.integrations.secrets import CREDENTIAL_REF_PATTERN
+from app.permissions import Role
 from app.schemas.normalized import NormalizedField, SchemaFormat, SchemaKind
 
 Slug = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9-]{1,63}$")]
@@ -30,6 +31,56 @@ class FirmOut(BaseModel):
     is_active: bool
 
 
+Username = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9._-]{2,63}$")]
+Password = Annotated[str, StringConstraints(min_length=8, max_length=200)]
+
+
+class UserCreate(StrictModel):
+    username: Username
+    display_name: Name
+    password: Password
+    role: Role
+
+
+class SignupRequest(StrictModel):
+    """Creates a firm and its first firm admin in one step."""
+
+    class Admin(StrictModel):
+        username: Username
+        display_name: Name
+        password: Password
+
+    firm: FirmCreate
+    admin: Admin
+
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    username: str
+    display_name: str
+    role: Role
+    is_active: bool
+
+
+class TokenRequest(StrictModel):
+    username: str
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"  # noqa: S105 - OAuth2 token type name, not a secret
+    expires_at: datetime
+
+
+class MeResponse(BaseModel):
+    user: UserOut
+    firm: FirmOut
+    permissions: list[str]
+
+
 class ConnectorCreate(StrictModel):
     name: Name
     connector_type: Literal["mock_cms_api"]
@@ -50,7 +101,6 @@ class ConnectorOut(BaseModel):
 
 
 class ProjectCreate(StrictModel):
-    firm_id: int
     connector_id: int
     name: Name
 
@@ -65,6 +115,7 @@ class SchemaVersionSummary(BaseModel):
     field_count: int
     target_config_revision: int | None
     original_filename: str | None
+    created_by: str | None
     created_at: datetime
 
 
@@ -73,6 +124,7 @@ class ProjectOut(BaseModel):
     firm: FirmOut
     connector: ConnectorOut
     name: str
+    created_by: str | None
     stage: Literal["awaiting_source_schema", "awaiting_target_inspection", "ready_for_mapping"]
     latest_source_schema: SchemaVersionSummary | None
     latest_target_schema: SchemaVersionSummary | None

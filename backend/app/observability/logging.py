@@ -8,6 +8,8 @@ from contextvars import ContextVar
 
 from fastapi import FastAPI, Request, Response
 
+from app.observability.tracing import current_trace_id
+
 request_id: ContextVar[str] = ContextVar("request_id", default="-")
 
 
@@ -19,6 +21,7 @@ class JsonFormatter(logging.Formatter):
             "logger": record.name,
             "message": record.getMessage(),
             "request_id": request_id.get(),
+            "trace_id": current_trace_id(),
         }
         if record.exc_info:
             entry["exception"] = self.formatException(record.exc_info)

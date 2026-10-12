@@ -18,6 +18,14 @@ class AppError(Exception):
         self.details = details or []
 
 
+class Unauthenticated(AppError):
+    status_code, code = 401, "unauthenticated"
+
+
+class Forbidden(AppError):
+    status_code, code = 403, "forbidden"
+
+
 class NotFound(AppError):
     status_code, code = 404, "not_found"
 
@@ -57,9 +65,11 @@ def register_error_handlers(app: FastAPI) -> None:
         details = exc.details
         if isinstance(exc, ConnectorError):
             details = [{"category": exc.category}, *details]
+        headers = {"WWW-Authenticate": "Bearer"} if isinstance(exc, Unauthenticated) else None
         return JSONResponse(
             jsonable_encoder(error_body(exc.code, exc.message, details)),
             status_code=exc.status_code,
+            headers=headers,
         )
 
     async def handle_request_validation(request: Request, exc: Exception) -> JSONResponse:

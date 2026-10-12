@@ -7,8 +7,8 @@ A phase is `COMPLETED` only when its acceptance criteria are met and the evidenc
 configuration existed. No phase has verifiable prior work.
 
 **Last completed phase:** Phase 2 — Schema normalization (2026-10-12).
-**Next phase to implement:** Phase 3 — LLM mapping proposals (awaiting user authorization; needs
-decision D5 and a Gemini API key).
+**Next phase to implement:** Phase 3 — LLM mapping proposals (awaiting user authorization; live-LLM
+evidence needs the keys in `.env`).
 
 | # | Phase | Status |
 |---|---|---|
@@ -122,12 +122,35 @@ Validation evidence (2026-10-12)
   schema versions × 10 fields and archived paths `projects/<id>/source-v1-<fp>.<ext>`. Logs are
   JSON lines with request ids.
 
-Known limitations / carried forward
-- **Backend API has no end-user authentication yet.** Nothing in Phase 2 writes to a CMS (inspection
-  is read-only), but approvals in Phase 3 require authenticated reviewers — decision **D5** below.
-- No backend container in Compose yet; run with uvicorn locally.
-- OpenTelemetry tracing not yet added (structured logging only); planned with the workflow/LLM work.
-- Ground-truth labels are the author's judgement on synthetic data.
+Limitations — follow-up of 2026-10-13 (requested by the user)
+- [x] ~~No end-user authentication~~ → **closed.** Reviewer accounts (D5): `users` + `auth_tokens`
+      (migration `0002`), roles `firm_admin` / `integration_specialist`, scrypt passwords, hashed
+      bearer tokens with expiry, self-service firm sign-up (can be disabled), every endpoint
+      firm-scoped (other firms' resources → 404), `created_by` recorded on projects and schema
+      versions with same-firm composite FKs.
+- [x] ~~No backend container~~ → **closed.** `backend/Dockerfile` (non-root, migrates on start);
+      Compose `backend` service on :8200 reading the git-ignored `.env`; connectors reach the mock
+      CMS as `http://mock-cms:8100`.
+- [x] ~~No OpenTelemetry tracing~~ → **closed.** FastAPI, SQLAlchemy and httpx instrumentation,
+      named domain spans (`normalize_source_schema`, `inspect_target`), `trace_id` in JSON logs,
+      exporters none/console/otlp; opt-in Jaeger (`--profile observability`).
+- [ ] Ground-truth labels are the author's judgement on synthetic data — inherent; can only be
+      reduced by a human (the user) reviewing `fixtures/expected-mappings/`.
+
+Follow-up evidence (2026-10-13)
+- `backend: pytest` — **70 passed**, 0 skipped (13 new: auth/RBAC/tenant isolation, observability,
+  seed). `mock-cms: pytest` — 75 passed. ruff + `mypy --strict` (51 files): clean.
+- Mutation check: removing the firm filter in `get_project` and the permission check in
+  `require()` → 2 targeted failures; restored → 70 passed.
+- Containers: `docker compose up -d --build backend` builds and serves; migrations `0002→base→0002`
+  ran in the container; seed created 3 firms / 6 reviewers / 3 connectors.
+- Container walkthrough: no token → 401; specialist creating a project → 403; firm C upload (201,
+  `created_by` c.specialist) and inspect-target via `http://mock-cms:8100` (201, tenant firm-c,
+  revision 0) → `ready_for_mapping`; firm A specialist reading firm C's project → 404.
+- Jaeger (OTLP): 11 traces; the inspect-target trace contains the server span, `inspect_target`,
+  outgoing POST (token) and GET (schema) to the CMS, and SQL spans. Backend logs show `trace_id`.
+- Afterwards the stack was returned to defaults (exporter `none`, Jaeger stopped). The dev
+  `onboarding` DB was reset and reseeded (its earlier walkthrough rows predated authentication).
 
 ## Phase 3 — LLM mapping proposals
 **Status:** NOT_STARTED
@@ -137,7 +160,8 @@ rejects or marks ambiguous. Approval and execution stay separate.
 evaluate proposals against `fixtures/expected-mappings/`.
 
 Tasks / deliverables
-- [ ] Reviewer authentication per D5
+- [x] Reviewer authentication per D5 (delivered early in the Phase 2 follow-up; add an
+      approval permission for `integration_specialist`)
 - [ ] Provider-neutral LLM client (Gemini primary; Groq per decision D1), prompts, typed tool registry
 - [ ] `mapping_proposals`, `mapping_versions`, `audit_events` tables
 - [ ] Deterministic `mapping_validator` (field existence, type compatibility, transformation support,
@@ -207,16 +231,16 @@ Required evidence: demo script/recording; CI green.
 - **D4 Temporal — RESOLVED:** run our own Temporal in this project's Compose on separate host ports
   (not 7233/8233, which another project uses). Port numbers chosen in Phase 5.
 
-## Outstanding decisions
-- **D5 Reviewer authentication (needed for Phase 3 approvals):** approvals must be tied to an
-  authenticated, authorized person. Proposed: a minimal backend `users` table (roles: firm_admin,
-  integration_specialist) with hashed bearer tokens, mirroring the mock CMS approach; no SSO/OAuth.
-- **D6 Gemini credentials (Phase 3):** a `GEMINI_API_KEY` (and optionally `GROQ_API_KEY`) is needed
-  for the live LLM run; without it that evidence item is BLOCKED (mocked-LLM tests still run).
+- **D5 Reviewer authentication — RESOLVED (2026-10-13):** firm-scoped `users` with roles
+  `firm_admin` / `integration_specialist`, hashed bearer tokens, no SSO. Implemented.
+- **D6 LLM keys — RESOLVED (2026-10-13):** the user will put `GEMINI_API_KEY` and `GROQ_API_KEY` in
+  the git-ignored root `.env` (created empty). Until filled, Phase 3 live-LLM evidence is BLOCKED.
 
+## Outstanding decisions
+None.
 ## Blockers
 None for completed work. Phase 3 live-LLM evidence depends on D6.
 
 ## Next steps
-1. User to decide D5 (reviewer authentication) and provide D6 (Gemini key) or accept BLOCKED live-LLM evidence.
+1. User fills `GEMINI_API_KEY` / `GROQ_API_KEY` in the root `.env`.
 2. User to authorize Phase 3 — LLM mapping proposals.
