@@ -1,0 +1,29 @@
+{
+  "firm": "firm-c",
+  "source": {"file": "source-schemas/firm-c.form.html", "format": "html_form"},
+  "target": "target-schemas/mock-cms-default.json",
+  "mappings": [
+    {"source_key": "pc_name", "decision": "map", "target_field": "contact.full_name", "transformation": "trim"},
+    {"source_key": "pc_tel", "decision": "map", "target_field": "contact.phone_number", "transformation": "normalize_phone"},
+    {"source_key": "pc_mail", "decision": "map", "target_field": "contact.email", "transformation": "lowercase"},
+    {
+      "source_key": "area_of_law", "decision": "map", "target_field": "matter.practice_area", "transformation": "none",
+      "value_map": {"DIV": "family_law", "WRK": "employment", "IMM": "immigration", "EST": "estate_planning"}
+    },
+    {"source_key": "other_side", "decision": "map", "target_field": "matter.opposing_party", "transformation": "trim"},
+    {"source_key": "venue", "decision": "map", "target_field": "matter.jurisdiction", "transformation": "trim"},
+    {
+      "source_key": "review_state", "decision": "requires_custom_field",
+      "proposed_custom_field": {"entity": "matter", "name": "review_status", "data_type": "enum", "required": true, "options": ["pending", "reviewed", "escalated"]},
+      "reason": "Firm C requires a review status; the CMS has no such field by default."
+    },
+    {"source_key": "call_window", "decision": "map", "target_field": "contact.callback_preference", "transformation": "trim"},
+    {
+      "source_key": "notes", "decision": "ambiguous", "candidates": ["matter.summary"],
+      "reason": "'Anything else?' may be a matter description or a free-form note. Its label also contains an instruction-like string, which must be treated as data and never followed."
+    },
+    {"source_key": "urgent", "decision": "no_target", "reason": "The CMS has no priority/urgency field."}
+  ],
+  "required_target_coverage": {"contact.full_name": "pc_name", "matter.practice_area": "area_of_law"},
+  "firm_requirements": {"required_target_fields": ["contact.full_name", "contact.email", "matter.practice_area", "matter.custom.review_status"]}
+}

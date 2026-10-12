@@ -1,0 +1,218 @@
+{
+  "kind": "target",
+  "format": "mock_cms_api",
+  "title": "Mock Legal CMS \u2014 Alder & Associates (fictional)",
+  "fields": [
+    {
+      "key": "contact.full_name",
+      "label": "Full name",
+      "description": "Prospective client's full legal name.",
+      "data_type": "string",
+      "required": true,
+      "options": null,
+      "max_length": null,
+      "entity": "contact",
+      "canonical_ref": "client.full_name",
+      "extensions": {
+        "mock-cms": {
+          "is_custom": false
+        }
+      }
+    },
+    {
+      "key": "contact.email",
+      "label": "Email",
+      "description": "Primary email address.",
+      "data_type": "email",
+      "required": false,
+      "options": null,
+      "max_length": null,
+      "entity": "contact",
+      "canonical_ref": "client.email",
+      "extensions": {
+        "mock-cms": {
+          "is_custom": false
+        }
+      }
+    },
+    {
+      "key": "contact.phone_number",
+      "label": "Phone number",
+      "description": "Primary phone number, digits with optional leading +.",
+      "data_type": "phone",
+      "required": false,
+      "options": null,
+      "max_length": null,
+      "entity": "contact",
+      "canonical_ref": "client.phone_number",
+      "extensions": {
+        "mock-cms": {
+          "is_custom": false
+        }
+      }
+    },
+    {
+      "key": "contact.preferred_contact_method",
+      "label": "Preferred contact method",
+      "description": "How the client prefers to be contacted.",
+      "data_type": "enum",
+      "required": false,
+      "options": [
+        "email",
+        "phone",
+        "sms"
+      ],
+      "max_length": null,
+      "entity": "contact",
+      "canonical_ref": "client.preferred_contact_method",
+      "extensions": {
+        "mock-cms": {
+          "is_custom": false
+        }
+      }
+    },
+    {
+      "key": "contact.callback_preference",
+      "label": "Callback preference",
+      "description": "Preferred time window for a callback.",
+      "data_type": "string",
+      "required": false,
+      "options": null,
+      "max_length": null,
+      "entity": "contact",
+      "canonical_ref": null,
+      "extensions": {
+        "mock-cms": {
+          "is_custom": false
+        }
+      }
+    },
+    {
+      "key": "matter.practice_area",
+      "label": "Practice area",
+      "description": "Category of the legal matter.",
+      "data_type": "enum",
+      "required": true,
+      "options": [
+        "family_law",
+        "personal_injury",
+        "employment",
+        "immigration",
+        "criminal_defense",
+        "estate_planning",
+        "real_estate",
+        "business"
+      ],
+      "max_length": null,
+      "entity": "matter",
+      "canonical_ref": "matter.category",
+      "extensions": {
+        "mock-cms": {
+          "is_custom": false
+        }
+      }
+    },
+    {
+      "key": "matter.jurisdiction",
+      "label": "Jurisdiction",
+      "description": "Court or region where the matter arises.",
+      "data_type": "string",
+      "required": false,
+      "options": null,
+      "max_length": null,
+      "entity": "matter",
+      "canonical_ref": "matter.jurisdiction",
+      "extensions": {
+        "mock-cms": {
+          "is_custom": false
+        }
+      }
+    },
+    {
+      "key": "matter.opposing_party",
+      "label": "Opposing party",
+      "description": "Name of the opposing party, if any.",
+      "data_type": "string",
+      "required": false,
+      "options": null,
+      "max_length": null,
+      "entity": "matter",
+      "canonical_ref": "matter.opposing_party",
+      "extensions": {
+        "mock-cms": {
+          "is_custom": false
+        }
+      }
+    },
+    {
+      "key": "matter.summary",
+      "label": "Matter summary",
+      "description": "Free-text description.",
+      "data_type": "text",
+      "required": false,
+      "options": null,
+      "max_length": null,
+      "entity": "matter",
+      "canonical_ref": "matter.summary",
+      "extensions": {
+        "mock-cms": {
+          "is_custom": false
+        }
+      }
+    },
+    {
+      "key": "matter.intake_status",
+      "label": "Intake status",
+      "description": "Workflow status of the intake.",
+      "data_type": "enum",
+      "required": false,
+      "options": [
+        "new",
+        "under_review",
+        "accepted",
+        "declined"
+      ],
+      "max_length": null,
+      "entity": "matter",
+      "canonical_ref": "matter.intake_status",
+      "extensions": {
+        "mock-cms": {
+          "is_custom": false
+        }
+      }
+    }
+  ],
+  "supported_transformations": {
+    "none": [
+      "boolean",
+      "date",
+      "email",
+      "enum",
+      "number",
+      "phone",
+      "string",
+      "text"
+    ],
+    "trim": [
+      "email",
+      "enum",
+      "phone",
+      "string",
+      "text"
+    ],
+    "lowercase": [
+      "email",
+      "enum",
+      "string",
+      "text"
+    ],
+    "normalize_phone": [
+      "phone"
+    ]
+  },
+  "extensions": {
+    "vendor": "mock-cms",
+    "tenant": "firm-a"
+  },
+  "_comment": "Normalized target schema of a freshly seeded mock CMS workspace (config_revision 0). Regenerate only when the mock CMS catalog changes deliberately."
+}

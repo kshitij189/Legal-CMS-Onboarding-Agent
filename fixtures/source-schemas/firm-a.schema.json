@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://forms.alder.example/intake.schema.json",
+  "title": "Alder & Associates (fictional) — new client intake",
+  "description": "Synthetic intake schema for Firm A. Requires client name, phone number and matter category.",
+  "type": "object",
+  "required": ["client_full_name", "client_mobile", "matter_type"],
+  "properties": {
+    "client_full_name": {"type": "string", "title": "Client full name", "maxLength": 200},
+    "client_mobile": {
+      "type": "string",
+      "format": "phone",
+      "title": "Mobile number",
+      "description": "Client's mobile number in any format."
+    },
+    "client_email": {"type": "string", "format": "email", "title": "Email address"},
+    "matter_type": {
+      "type": "string",
+      "title": "Type of legal matter",
+      "enum": ["Family", "Personal Injury", "Employment", "Immigration"]
+    },
+    "opposing_party": {"type": "string", "title": "Opposing party"},
+    "jurisdiction": {"type": "string", "title": "Jurisdiction"},
+    "callback_time": {
+      "type": "string",
+      "title": "Preferred callback time",
+      "enum": ["Morning", "Afternoon", "Evening"]
+    },
+    "matter_details": {
+      "type": "string",
+      "title": "Describe your situation",
+      "maxLength": 5000
+    },
+    "consent_to_contact": {
+      "type": "boolean",
+      "title": "Consent to contact",
+      "x-legacy-column": "CONSENT_FLG"
+    },
+    "attachments": {
+      "type": "array",
+      "title": "Supporting documents",
+      "items": {"type": "string", "contentEncoding": "base64"}
+    }
+  }
+}

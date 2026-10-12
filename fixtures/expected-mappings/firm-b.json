@@ -1,0 +1,26 @@
+{
+  "firm": "firm-b",
+  "source": {"file": "source-schemas/firm-b.fields.csv", "format": "field_export_csv"},
+  "target": "target-schemas/mock-cms-default.json",
+  "mappings": [
+    {"source_key": "contact_name", "decision": "map", "target_field": "contact.full_name", "transformation": "trim"},
+    {"source_key": "contact_email", "decision": "map", "target_field": "contact.email", "transformation": "lowercase"},
+    {"source_key": "contact_phone", "decision": "map", "target_field": "contact.phone_number", "transformation": "normalize_phone"},
+    {
+      "source_key": "case_category", "decision": "map", "target_field": "matter.practice_area", "transformation": "none",
+      "value_map": {"Family Law": "family_law", "Employment Law": "employment", "Real Estate": "real_estate", "Business": "business"}
+    },
+    {"source_key": "court_jurisdiction", "decision": "map", "target_field": "matter.jurisdiction", "transformation": "trim"},
+    {"source_key": "adverse_party", "decision": "map", "target_field": "matter.opposing_party", "transformation": "trim"},
+    {"source_key": "incident_date", "decision": "no_target", "reason": "The CMS has no incident-date field; a custom date field would need a firm decision."},
+    {"source_key": "case_summary", "decision": "map", "target_field": "matter.summary", "transformation": "none"},
+    {
+      "source_key": "preferred_contact", "decision": "map", "target_field": "contact.preferred_contact_method", "transformation": "none",
+      "value_map": {"Email": "email", "Phone": "phone", "Text message": "sms"}
+    },
+    {"source_key": "referral_source", "decision": "no_target", "reason": "Marketing attribution is not part of the CMS intake model."}
+  ],
+  "required_target_coverage": {"contact.full_name": "contact_name", "matter.practice_area": "case_category"},
+  "firm_requirements": {"required_target_fields": ["contact.full_name", "contact.email", "matter.jurisdiction", "matter.opposing_party"]},
+  "notes": ["matter.practice_area is required by the CMS default configuration but case_category is optional in Firm B's export: onboarding must flag this gap rather than assume a default."]
+}

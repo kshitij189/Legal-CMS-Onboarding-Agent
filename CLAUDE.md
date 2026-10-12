@@ -114,6 +114,19 @@ Audit report <─ Verification (read-after-write) <─ CMS adapter / Playwright 
   `GET /api/v1/intake-records[/{id}]`. HTML UI at `/login`, `/config/fields`, `/config/mappings`,
   `/intake/new`, `/records` with label/role-based accessible markup for Playwright.
 
+### Normalization contract (built in Phase 2)
+- Every schema — source or target — becomes `NormalizedSchema` (`backend/app/schemas/normalized.py`):
+  fields with `key, label, description, data_type, required, options, max_length, extensions`;
+  target fields add `entity` and `canonical_ref` (None = vendor-specific). Types:
+  `string|text|email|phone|enum|date|boolean|number|unsupported`. Unrecognised source details go to
+  `extensions`; `unsupported` marks recognised-but-unmappable fields (arrays, files) — never dropped.
+- Source parsers (`backend/app/domain/parsers/`): `json_schema`, `field_export_csv`, `html_form`.
+  They never infer semantics or canonical refs — that is the mapping proposal's job (Phase 3).
+- Schema versions are immutable; re-registering identical content (same fingerprint) returns the
+  latest version (`created: false`). Uploaded sources are archived under `artifacts/projects/<id>/`.
+- Ground truth: `fixtures/expected-mappings/firm-{a,b,c}.json` (see its README), checked against the
+  normalized schemas by `tests/unit/test_consistency.py`.
+
 **Integration boundary:** `Source schema → Canonical model → Target CMS adapter`. Vendor-specific fields
 live in a controlled extension structure, never discarded. No pairwise source→target mapping engines.
 
@@ -190,13 +203,27 @@ cd mock-cms; py -3.13 -m venv .venv; .\.venv\Scripts\python -m pip install -e ".
 docker compose up -d --build mock-cms ; docker compose exec mock-cms python -m app.seed
 # Reset the dev mock CMS database to a clean seeded state:
 docker compose exec mock-cms alembic downgrade base ; docker compose exec mock-cms alembic upgrade head ; docker compose exec mock-cms python -m app.seed
+
+# Backend (separate venv; from backend/). Needs onboarding + onboarding_test DBs (init script).
+cd backend; py -3.13 -m venv .venv; .\.venv\Scripts\python -m pip install -e ".[dev]"
+.\.venv\Scripts\python -m alembic upgrade head      # migrate onboarding DB
+.\.venv\Scripts\python -m uvicorn app.main:app --port 8200   # backend API (http://localhost:8200/docs)
+.\.venv\Scripts\python -m pytest                    # all tests; live_cms tests need mock CMS on :8100
+.\.venv\Scripts\python -m pytest -m "not live_cms"  # without the running mock CMS
+.\.venv\Scripts\python -m ruff check . ; .\.venv\Scripts\python -m mypy app tests
 ```
+
+Backend connector credentials come from `ONBOARDING_SECRET_<CREDENTIAL_REF>_USERNAME/_PASSWORD`
+(see `.env.example`); set them in the shell — there is no `.env` loader. On a volume created before
+Phase 2, create the backend DBs once:
+`docker compose exec postgres psql -U lcms -d lcms -c "CREATE DATABASE onboarding;" -c "CREATE DATABASE onboarding_test;"`
 
 Mock CMS demo logins (synthetic): `<a|b|c>.<admin|integration|intake|staff>` with password
 `MOCK_CMS_SEED_PASSWORD` (default `demo-password`). OpenAPI docs: http://localhost:8100/docs.
 
 Ports in use on this machine by an unrelated project (`legal_intake_agent`): 5433 (Postgres),
-7233/8233 (Temporal), 7880–7882 (LiveKit). Do not bind those; this project uses 5434 and 8100.
+7233/8233 (Temporal), 7880–7882 (LiveKit). Do not bind those; this project uses 5434 (Postgres),
+8100 (mock CMS) and 8200 (backend).
 
 Keep this section current as phases add commands.
 

@@ -6,13 +6,14 @@ A phase is `COMPLETED` only when its acceptance criteria are met and the evidenc
 **Repository inspection (2026-10-12):** the repository was empty — no source code, tests, or
 configuration existed. No phase has verifiable prior work.
 
-**Last completed phase:** Phase 1 — Mock CMS (2026-10-12).
-**Next phase to implement:** Phase 2 — Schema normalization (awaiting user authorization).
+**Last completed phase:** Phase 2 — Schema normalization (2026-10-12).
+**Next phase to implement:** Phase 3 — LLM mapping proposals (awaiting user authorization; needs
+decision D5 and a Gemini API key).
 
 | # | Phase | Status |
 |---|---|---|
 | 1 | Mock CMS | COMPLETED |
-| 2 | Schema normalization | NOT_STARTED |
+| 2 | Schema normalization | COMPLETED |
 | 3 | LLM mapping proposals | NOT_STARTED |
 | 4 | Playwright execution | NOT_STARTED |
 | 5 | Durable orchestration (Temporal) | NOT_STARTED |
@@ -75,32 +76,68 @@ Known limitations (accepted for Phase 1)
   Custom fields cannot be deleted (not required by the blueprint so far).
 
 ## Phase 2 — Schema normalization
-**Status:** NOT_STARTED — **next phase**
+**Status:** COMPLETED (2026-10-12)
 **Objective:** Pydantic models for source fields, target fields, canonical entities, mappings and
 transformations; normalize multiple firms' schemas into one representation.
-**Depends on:** Phase 1 (target schema from mock CMS) — satisfied. Target schema is available at
-`GET /api/v1/schema` using the `<firm>.integration` account.
+**Depends on:** Phase 1 — satisfied.
 
 Tasks / deliverables
-- [ ] Backend scaffold (`backend/`, FastAPI app, DB models + Alembic for firms, cms_connectors,
-      onboarding_projects, schema_definitions, field_definitions)
-- [ ] Canonical model (Client, Matter, Intake, Task, Document reference) + extension structure
-- [ ] Source schema parsers (JSON schema, field-definition export, sample form)
-- [ ] Target schema normalization via mock CMS adapter (`integrations/base.py`, `mock_cms.py`/`api_cms.py`)
-- [ ] Fixtures: Firm A/B/C source schemas, target schema snapshot, expected mappings (ground truth)
-- [ ] Project + source-schema + inspect-target endpoints
+- [x] Backend scaffold `backend/` (FastAPI, SQLAlchemy, Alembic `0001`): firms, cms_connectors,
+      onboarding_projects, schema_definitions, field_definitions; composite FKs keep projects,
+      connectors and schemas inside one firm
+- [x] `NormalizedSchema` / `NormalizedField` common representation with fingerprinting
+      (`app/schemas/normalized.py`)
+- [x] Canonical model (Client, Matter, Intake, Task, DocumentReference, each with `extensions`) and
+      the mappable `CANONICAL_ATTRIBUTES` registry (`app/domain/canonical.py`)
+- [x] Source parsers: JSON Schema (Firm A), CSV field export (Firm B), HTML form (Firm C), with
+      structured `schema_parse_error` details and a 1 MB limit
+- [x] Target normalization via `integrations/mock_cms.py` (JSON API only): vendor→canonical map,
+      vendor-specific fields kept with `canonical_ref: null` + extensions, origin allow-list,
+      env-resolved credentials, bounded retry on transient errors, classified connector errors
+- [x] Fixtures: `fixtures/source-schemas/firm-{a,b,c}`, `fixtures/target-schemas/mock-cms-default.json`
+      (captured live), `fixtures/expected-mappings/firm-{a,b,c}.json` + README (author-labelled)
+- [x] Endpoints: firms, connectors, `POST /onboarding-projects`, `GET /onboarding-projects/{id}`
+      (with stage), `POST …/source-schema`, `POST …/inspect-target`, `GET …/schemas[/{id}]`
+- [x] Structured JSON logging with request ids (`app/observability/logging.py`)
+- Not built (deliberately): a generic `api_cms.py` — no second CMS API exists to justify it yet.
 
-Acceptance criteria: Firms A, B, C normalize consistently; versioned schema definitions stored;
-vendor-specific fields preserved in extensions.
-Required evidence: unit tests per parser; integration test normalizing all three firms + live mock CMS.
+Acceptance criteria — all met
+- [x] Firms A, B, C normalize consistently (equivalent concepts → same types; tested per concept).
+- [x] Versioned schema definitions stored (immutable versions, idempotent re-registration,
+      archived source documents, DB round-trip preserves the fingerprint).
+- [x] Vendor-specific fields preserved in extensions (source: `x-*` keywords, CSV `legacy_id`,
+      HTML `data-*` and option labels; target: custom fields and `callback_preference`).
+
+Validation evidence (2026-10-12)
+- `backend: pytest` — **57 passed** (unit: parsers, consistency, adapter; integration against
+  PostgreSQL `onboarding_test`; 5 `live_cms` tests against the running mock CMS container, all
+  passed, none skipped).
+- Mutation check: removing the same-firm connector filter and the fingerprint idempotency check →
+  5 failures; restored → 57 passed.
+- `ruff check`, `ruff format --check`, `mypy --strict app tests` (41 files): clean.
+- `mock-cms: pytest` re-run: 75 passed (unchanged).
+- Manual run: backend under uvicorn on :8200 + mock CMS on :8100. For firms A/B/C: source upload
+  201 (v1), identical repeat 200 `created: false`, inspect-target 201 at CMS revision 0, stage
+  `ready_for_mapping`; malformed HTML → 422 `schema_parse_error`. `psql` on `onboarding` shows 6
+  schema versions × 10 fields and archived paths `projects/<id>/source-v1-<fp>.<ext>`. Logs are
+  JSON lines with request ids.
+
+Known limitations / carried forward
+- **Backend API has no end-user authentication yet.** Nothing in Phase 2 writes to a CMS (inspection
+  is read-only), but approvals in Phase 3 require authenticated reviewers — decision **D5** below.
+- No backend container in Compose yet; run with uvicorn locally.
+- OpenTelemetry tracing not yet added (structured logging only); planned with the workflow/LLM work.
+- Ground-truth labels are the author's judgement on synthetic data.
 
 ## Phase 3 — LLM mapping proposals
 **Status:** NOT_STARTED
 **Objective:** LLM proposes mappings via structured tool calls; deterministic validator accepts,
 rejects or marks ambiguous. Approval and execution stay separate.
-**Depends on:** Phase 2.
+**Depends on:** Phase 2 — satisfied. Inputs: normalized source/target schema versions per project;
+evaluate proposals against `fixtures/expected-mappings/`.
 
 Tasks / deliverables
+- [ ] Reviewer authentication per D5
 - [ ] Provider-neutral LLM client (Gemini primary; Groq per decision D1), prompts, typed tool registry
 - [ ] `mapping_proposals`, `mapping_versions`, `audit_events` tables
 - [ ] Deterministic `mapping_validator` (field existence, type compatibility, transformation support,
@@ -171,7 +208,15 @@ Required evidence: demo script/recording; CI green.
   (not 7233/8233, which another project uses). Port numbers chosen in Phase 5.
 
 ## Outstanding decisions
-None.
+- **D5 Reviewer authentication (needed for Phase 3 approvals):** approvals must be tied to an
+  authenticated, authorized person. Proposed: a minimal backend `users` table (roles: firm_admin,
+  integration_specialist) with hashed bearer tokens, mirroring the mock CMS approach; no SSO/OAuth.
+- **D6 Gemini credentials (Phase 3):** a `GEMINI_API_KEY` (and optionally `GROQ_API_KEY`) is needed
+  for the live LLM run; without it that evidence item is BLOCKED (mocked-LLM tests still run).
 
 ## Blockers
-None currently.
+None for completed work. Phase 3 live-LLM evidence depends on D6.
+
+## Next steps
+1. User to decide D5 (reviewer authentication) and provide D6 (Gemini key) or accept BLOCKED live-LLM evidence.
+2. User to authorize Phase 3 — LLM mapping proposals.

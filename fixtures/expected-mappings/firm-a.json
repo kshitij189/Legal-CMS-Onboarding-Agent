@@ -1,0 +1,22 @@
+{
+  "firm": "firm-a",
+  "source": {"file": "source-schemas/firm-a.schema.json", "format": "json_schema"},
+  "target": "target-schemas/mock-cms-default.json",
+  "mappings": [
+    {"source_key": "client_full_name", "decision": "map", "target_field": "contact.full_name", "transformation": "trim"},
+    {"source_key": "client_mobile", "decision": "map", "target_field": "contact.phone_number", "transformation": "normalize_phone"},
+    {"source_key": "client_email", "decision": "map", "target_field": "contact.email", "transformation": "lowercase"},
+    {
+      "source_key": "matter_type", "decision": "map", "target_field": "matter.practice_area", "transformation": "none",
+      "value_map": {"Family": "family_law", "Personal Injury": "personal_injury", "Employment": "employment", "Immigration": "immigration"}
+    },
+    {"source_key": "opposing_party", "decision": "map", "target_field": "matter.opposing_party", "transformation": "trim"},
+    {"source_key": "jurisdiction", "decision": "map", "target_field": "matter.jurisdiction", "transformation": "trim"},
+    {"source_key": "callback_time", "decision": "map", "target_field": "contact.callback_preference", "transformation": "none"},
+    {"source_key": "matter_details", "decision": "map", "target_field": "matter.summary", "transformation": "none"},
+    {"source_key": "consent_to_contact", "decision": "no_target", "reason": "The CMS has no consent field; consent capture stays in the firm's form."},
+    {"source_key": "attachments", "decision": "unsupported", "reason": "Array of files; intake mappings carry scalar values only."}
+  ],
+  "required_target_coverage": {"contact.full_name": "client_full_name", "matter.practice_area": "matter_type"},
+  "firm_requirements": {"required_target_fields": ["contact.full_name", "contact.phone_number", "matter.practice_area"]}
+}

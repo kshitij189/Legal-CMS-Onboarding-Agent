@@ -105,3 +105,75 @@ dev: pytest 9.1.1, httpx 0.28.1 (TestClient), ruff 0.17.0, mypy 2.4.0. All withi
   commit + push after every phase, authored solely by `kshitij189` (no Claude attribution).
 - D4: Temporal will run in this project's Compose on its own host ports (Phase 5).
 - Phase 1 work committed and pushed as the initial commit.
+
+
+---
+
+## Phase 2 — Schema normalization
+
+### 2026-10-12 — Normalization, canonical model and schema registry (status: COMPLETED)
+
+**Added**
+- `backend/` (independent Python project, own venv; Alembic `0001`): firms, cms_connectors,
+  onboarding_projects, schema_definitions, field_definitions with composite same-firm FKs.
+- `app/schemas/normalized.py` — `NormalizedSchema`/`NormalizedField`, `DataType` incl. `unsupported`,
+  content fingerprint for versioning.
+- `app/domain/canonical.py` — Client, Matter, Intake, Task, DocumentReference (+ `extensions`) and
+  the mappable canonical attribute registry.
+- `app/domain/parsers/` — JSON Schema, CSV field export and HTML form parsers;
+  `app/domain/schema_normalizer.py` dispatcher with a 1 MB limit.
+- `app/integrations/` — adapter protocol (`base.py`), mock CMS API adapter (`mock_cms.py`),
+  env-based secret resolution (`secrets.py`), adapter registry.
+- `app/domain/project_service.py` + `app/api/{firms,onboarding,schemas}.py` — project, connector
+  and schema-version endpoints; source documents archived to `artifacts/`.
+- `app/observability/logging.py` — JSON logs with `x-request-id` correlation.
+- Fixtures: three firm source schemas, live-captured target snapshot, ground-truth expected mappings.
+- `docs/BLUEPRINT.md`, `.gitattributes`; `.env.example` and Postgres init script extended for the
+  backend; CLAUDE.md commands, normalization contract and git rules updated.
+
+**Decisions and rationale**
+- *One normalized representation for source and target*: later phases compare like with like and
+  never touch vendor formats; vendor/format specifics live in `extensions`.
+- *Parsers never infer meaning*: no name-based guessing (e.g. "mobile" → phone) or canonical refs on
+  source fields — semantic mapping is the LLM's job (Phase 3) and must be validated, not hidden in a
+  parser. Explicit type signals (`format: phone`, `type=tel`, "Phone" column type) are used.
+- *Each firm uses a different source format* (JSON Schema / CSV export / HTML form) so the three
+  fixtures exercise all three parsers and prove cross-format consistency.
+- *Fingerprint-based immutable versions*: identical re-submission is idempotent; any change yields a
+  new version, which later lets approvals bind to exact schema versions (blueprint §14).
+- *Archived uploads use server-generated paths*; the client filename is metadata only.
+- *Credentials by reference* (`credential_ref` → env vars), never in the DB or API responses; the
+  connector uses the mock CMS `integration` account (least privilege).
+- *Read-only retries only*: the adapter retries transient failures on GETs/login (3 attempts,
+  backoff); authorization/contract errors stop immediately with a category.
+- *`jsonschema` dependency*: validates uploaded JSON Schemas against their meta-schema (approved
+  "JSON Schema" layer of the stack). HTML parsing uses the standard library.
+- *No generic `api_cms.py` yet*: there is only one CMS API; building a generic connector now would be
+  speculative.
+
+**Dependencies added (backend)**
+fastapi 0.143.0, uvicorn 0.54.0, SQLAlchemy 2.0.54, psycopg[binary] 3.3.6, alembic 1.20.0,
+pydantic 2.14.1, httpx 0.28.1 (adapter HTTP client), jsonschema 4.26.0;
+dev: pytest 9.1.1, ruff 0.17.0, mypy 2.4.0, types-jsonschema.
+
+**Tests executed (actual results)**
+- `backend: python -m pytest` — 57 passed (incl. 5 `live_cms` tests against the running mock CMS;
+  0 skipped). One third-party deprecation warning (Starlette `TestClient`/`httpx`).
+- Mutation check (temporary): same-firm connector filter removed + fingerprint idempotency disabled
+  → 5 failed / 52 passed; reverted → 57 passed.
+- `ruff check`, `ruff format --check`, `mypy --strict app tests`: clean.
+- `mock-cms: python -m pytest` — 75 passed.
+- Manual uvicorn run for firms A/B/C with `psql` verification — see `IMPLEMENTATION_PROGRESS.md`.
+
+**Bugs fixed during the phase**
+- HTML parser labelled radio groups with the first option's text; the `<legend>` now wins.
+- HTML select option display text (e.g. `DIV` → "Divorce & Custody") was lost; kept in
+  `extensions.option_labels`.
+- JSON Schema top-level `description` was discarded; now preserved in schema extensions.
+- Unnamed submit buttons were reported as "control has no name"; now "not an intake field".
+
+**Known issues / limitations**
+- No end-user authentication on the backend API yet (decision D5, before Phase 3 approvals).
+- No backend container; OpenTelemetry tracing not yet added.
+- In the manual run, my PowerShell health-poll loop reported the server as not up although every
+  subsequent request succeeded — a script quirk, not an application issue.

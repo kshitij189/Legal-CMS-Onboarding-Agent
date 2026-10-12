@@ -1,0 +1,11 @@
+field_name,label,type,required,description,options,legacy_id
+contact_name,Contact name,Text,Y,Full name of the enquirer,,F001
+contact_email,E-mail,Email,Y,,,F002
+contact_phone,Telephone,Phone,N,Include country code,,F003
+case_category,Case category,Picklist,N,,Family Law|Employment Law|Real Estate|Business,F004
+court_jurisdiction,Jurisdiction (court/county),Text,Y,,,F005
+adverse_party,Adverse party,Text,Y,Name of the other side,,F006
+incident_date,Date of incident,Date,N,,,F007
+case_summary,Summary,Long Text,N,,,F008
+preferred_contact,Preferred contact method,Picklist,N,,Email|Phone|Text message,F009
+referral_source,How did you hear about us?,Text,N,,,F010
