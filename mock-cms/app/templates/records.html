@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Records{% endblock %}
+{% block content %}
+<h1>Intake records</h1>
+{% if created %}<p class="notice" role="status">Intake record #{{ created }} created.</p>{% endif %}
+<table aria-label="Intake records">
+  <thead><tr><th scope="col">ID</th><th scope="col">Created</th><th scope="col">Submitted by</th><th scope="col">Values</th><th scope="col">Unmapped keys</th></tr></thead>
+  <tbody>
+  {% for r in records %}
+    <tr>
+      <td>{{ r.id }}</td>
+      <td>{{ r.created_at.strftime("%Y-%m-%d %H:%M UTC") }}</td>
+      <td>{{ r.submitted_by.username }}</td>
+      <td>{% for k, v in r.values.items() %}<code>{{ k }}</code>: {{ v }}<br>{% endfor %}</td>
+      <td>{{ r.unmapped_keys|join(", ") }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5">No intake records yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

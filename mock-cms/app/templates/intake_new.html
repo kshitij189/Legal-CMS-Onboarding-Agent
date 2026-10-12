@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}New intake{% endblock %}
+{% block content %}
+<h1>New intake</h1>
+{% if not mappings %}
+<p>No intake mappings are configured yet, so there is nothing to collect.</p>
+{% else %}
+<form method="post" action="/intake" class="stacked">
+  <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+  {% for m in mappings %}
+  <label for="{{ prefix }}{{ m.source_key }}">{{ m.source_key }}</label>
+  <input type="text" id="{{ prefix }}{{ m.source_key }}" name="{{ prefix }}{{ m.source_key }}" value="{{ submitted.get(m.source_key, '') }}" aria-describedby="{{ prefix }}{{ m.source_key }}-target">
+  <span id="{{ prefix }}{{ m.source_key }}-target" class="muted">→ {{ m.target_field.label }}{% if m.target_field.required %} (required){% endif %}</span>
+  {% endfor %}
+  <button type="submit">Submit intake</button>
+</form>
+{% endif %}
+{% endblock %}

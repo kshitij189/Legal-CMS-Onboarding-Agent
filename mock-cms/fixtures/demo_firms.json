@@ -1,0 +1,35 @@
+{
+  "_comment": "Fictional firms and users. Synthetic data only. Firm-specific intake requirements live in the onboarding source schemas (Phase 2); each workspace starts with the CMS default configuration.",
+  "firms": [
+    {
+      "slug": "firm-a",
+      "name": "Alder & Associates (fictional)",
+      "users": [
+        {"username": "a.admin", "display_name": "Firm A Administrator", "role": "admin"},
+        {"username": "a.integration", "display_name": "Firm A Integration Specialist", "role": "integration"},
+        {"username": "a.intake", "display_name": "Firm A Intake Coordinator", "role": "intake_coordinator"},
+        {"username": "a.staff", "display_name": "Firm A Staff", "role": "staff"}
+      ]
+    },
+    {
+      "slug": "firm-b",
+      "name": "Birch Legal LLP (fictional)",
+      "users": [
+        {"username": "b.admin", "display_name": "Firm B Administrator", "role": "admin"},
+        {"username": "b.integration", "display_name": "Firm B Integration Specialist", "role": "integration"},
+        {"username": "b.intake", "display_name": "Firm B Intake Coordinator", "role": "intake_coordinator"},
+        {"username": "b.staff", "display_name": "Firm B Staff", "role": "staff"}
+      ]
+    },
+    {
+      "slug": "firm-c",
+      "name": "Cedar Law Group (fictional)",
+      "users": [
+        {"username": "c.admin", "display_name": "Firm C Administrator", "role": "admin"},
+        {"username": "c.integration", "display_name": "Firm C Integration Specialist", "role": "integration"},
+        {"username": "c.intake", "display_name": "Firm C Intake Coordinator", "role": "intake_coordinator"},
+        {"username": "c.staff", "display_name": "Firm C Staff", "role": "staff"}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ field.label }}{% endblock %}
+{% block content %}
+<h1>Edit field <code>{{ field.key }}</code></h1>
+<p class="muted">Type: {{ field.data_type }}{% if field.is_custom %} · custom field{% endif %}</p>
+<form method="post" action="/config/fields/{{ field.key }}" class="stacked">
+  <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+  <label for="label">Label</label>
+  <input type="text" id="label" name="label" value="{{ field.label }}" required>
+  <label for="description">Description</label>
+  <textarea id="description" name="description" rows="3">{{ field.description }}</textarea>
+  <label><input type="checkbox" name="required" value="on" {% if field.required %}checked{% endif %}> Required</label>
+  <label><input type="checkbox" name="enabled" value="on" {% if field.enabled %}checked{% endif %}> Enabled</label>
+  {% if field.data_type == "enum" %}
+  <label for="options">Options (one per line)</label>
+  <textarea id="options" name="options" rows="6">{{ (field.options or [])|join("\n") }}</textarea>
+  {% endif %}
+  <button type="submit">Save field</button>
+</form>
+<p><a href="/config/fields">Back to fields</a></p>
+{% endblock %}

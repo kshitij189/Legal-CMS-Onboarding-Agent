@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lcms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lcms_dev_password}
+      POSTGRES_DB: lcms
+    ports:
+      - "${POSTGRES_HOST_PORT:-5434}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lcms} -d lcms"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  mock-cms:
+    build: ./mock-cms
+    environment:
+      MOCK_CMS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-lcms}:${POSTGRES_PASSWORD:-lcms_dev_password}@postgres:5432/mock_cms
+      MOCK_CMS_SEED_PASSWORD: ${MOCK_CMS_SEED_PASSWORD:-demo-password}
+    ports:
+      - "8100:8100"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:

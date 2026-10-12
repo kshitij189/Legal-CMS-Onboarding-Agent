@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Fields{% endblock %}
+{% block content %}
+<h1>Fields</h1>
+<p class="muted">Configuration revision <span data-testid="config-revision">{{ revision }}</span></p>
+{% if "fields:write" in permissions %}<p><a href="/config/custom-fields/new">Add custom field</a></p>{% endif %}
+<table aria-label="Fields">
+  <thead>
+    <tr><th scope="col">Key</th><th scope="col">Label</th><th scope="col">Type</th><th scope="col">Required</th><th scope="col">Enabled</th><th scope="col">Options</th>{% if "fields:write" in permissions %}<th scope="col">Actions</th>{% endif %}</tr>
+  </thead>
+  <tbody>
+  {% for f in fields %}
+    <tr>
+      <td><code>{{ f.key }}</code>{% if f.is_custom %} <span class="muted">(custom)</span>{% endif %}</td>
+      <td>{{ f.label }}</td>
+      <td>{{ f.data_type }}</td>
+      <td>{{ "Yes" if f.required else "No" }}</td>
+      <td>{{ "Yes" if f.enabled else "No" }}</td>
+      <td>{{ (f.options or [])|join(", ") }}</td>
+      {% if "fields:write" in permissions %}<td><a href="/config/fields/{{ f.key }}/edit" aria-label="Edit {{ f.label }}">Edit</a></td>{% endif %}
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

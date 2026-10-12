@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Mock Legal CMS{% endblock %} · Mock Legal CMS</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; color: #1d1d1f; background: #fafafa; }
+    header { background: #1f3a5f; color: #fff; padding: .75rem 1.5rem; display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; }
+    header a { color: #fff; }
+    header .who { margin-left: auto; font-size: .9rem; }
+    main { padding: 1.5rem; max-width: 1100px; }
+    table { border-collapse: collapse; width: 100%; background: #fff; }
+    th, td { border: 1px solid #ddd; padding: .4rem .6rem; text-align: left; vertical-align: top; }
+    form.stacked label { display: block; margin-top: .75rem; font-weight: 600; }
+    form.stacked input[type=text], form.stacked input[type=password], form.stacked select, form.stacked textarea { width: 100%; max-width: 32rem; padding: .35rem; }
+    button { margin-top: 1rem; padding: .4rem .9rem; }
+    td form button { margin-top: 0; }
+    .notice { background: #e6f4ea; border: 1px solid #8bc79b; padding: .5rem .75rem; }
+    .errors { background: #fdecea; border: 1px solid #e0a19b; padding: .5rem .75rem; }
+    .muted { color: #666; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Mock Legal CMS</strong>
+    {% if session %}
+    <nav aria-label="Main">
+      {% if "config:read" in permissions %}<a href="/config/fields">Fields</a> · <a href="/config/mappings">Intake mappings</a>{% endif %}
+      {% if "intake:submit" in permissions %} · <a href="/intake/new">New intake</a>{% endif %}
+      {% if "records:read" in permissions %} · <a href="/records">Records</a>{% endif %}
+    </nav>
+    <div class="who">
+      Signed in as {{ session.user.display_name }} ({{ session.user.role }}) — {{ session.user.tenant.name }}
+      <form method="post" action="/logout" style="display:inline">
+        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+        <button type="submit" style="margin:0 0 0 .5rem">Sign out</button>
+      </form>
+    </div>
+    {% endif %}
+  </header>
+  <main>
+    {% if notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
+    {% if errors %}
+    <div class="errors" role="alert">
+      <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
