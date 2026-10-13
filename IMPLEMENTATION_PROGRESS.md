@@ -413,7 +413,7 @@ Known limitations
 - Demo databases now contain the walkthrough projects (reset commands in CLAUDE.md).
 
 ## Phase 7 — Hardening + demonstration
-**Status:** COMPLETED (2026-10-13) — CI result pending on GitHub (see below)
+**Status:** COMPLETED (2026-10-13)
 **Objective:** Test unauthorized actions, UI changes, timeouts, duplicates, schema changes, untrusted input;
 produce README and demo.
 **Depends on:** Phase 6.
@@ -493,5 +493,4 @@ None.
 None for completed work. Phase 3 live-LLM evidence depends on D6.
 
 ## Next steps
-1. Confirm the first CI run on GitHub Actions is green.
-2. Revisit the limitations of all phases, which the user deferred to the end.
+1. Revisit the limitations of all phases, which the user deferred to the end.
