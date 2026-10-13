@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.api import auth, firms, onboarding, schemas
+from app.api import auth, firms, mappings, onboarding, schemas
 from app.db.session import get_engine
 from app.errors import register_error_handlers
 from app.observability.logging import configure_logging, install_request_logging
@@ -20,6 +20,7 @@ def create_app() -> FastAPI:
     app.include_router(firms.router)
     app.include_router(onboarding.router)
     app.include_router(schemas.router)
+    app.include_router(mappings.router)
     configure_tracing(app, get_engine())
 
     @app.get("/healthz", include_in_schema=False)

@@ -279,6 +279,32 @@ Keep this section current as phases add commands.
 - Proposals, approved versions, executed actions and verified results are distinct records — never
   conflate them.
 
+### As implemented (Phase 3)
+- `backend/app/agent/llm_client.py`: forced single tool call, temperature 0, args validated by
+  Pydantic; provider chain from `LLM_PROVIDERS` (default `gemini,groq`), models from `GEMINI_MODEL`
+  (default `gemini-3.8-flash`) / `GROQ_MODEL` (default `openai/gpt-oss-120b`), `LLM_TIMEOUT_SECONDS`.
+  Errors are classified (`quota`, `transient`, `configuration`, `invalid_output`, `provider`);
+  a failing provider falls through to the next and the fallback is recorded.
+- Gemini rejects `additionalProperties`, `default`, `min/maxLength`, `min/maxItems` in function
+  declarations — they are stripped for Gemini only; Pydantic still enforces them on the result.
+  The key's free tier allows ~20 requests/day/model; Gemini latency can exceed 2 minutes.
+- `agent/tool_registry.py` is the allow-list; it holds only `propose_field_mappings`
+  (`writes=False`). Do not register write tools for the model.
+- `agent/prompts.py`: versioned (`PROMPT_VERSION`); untrusted schema text only inside
+  `<untrusted_schema_data>` as cleaned JSON; `detect_instructions` flags instruction-like text and
+  the validator forces review for those fields. Bump `PROMPT_VERSION` on any prompt change.
+- `domain/mapping_validator.py` is pure and deterministic: `valid | needs_review | invalid`;
+  confidence can only lower a status. Every rejection class has a unit test — add one per new rule.
+- Flow (`domain/mapping_service.py`): `propose-mappings` (Idempotency-Key supported; LLM failures
+  stored as failed generations) → per-proposal review (`approve` | `reject` |
+  `request_clarification` | `edit`; invalid cannot be approved, ambiguous must be edited,
+  needs_review approval needs a comment, edits create a new superseding row) → `approve-mappings`
+  creates an immutable `mapping_versions` row pinned to the schema versions; schema drift → 409.
+- DB triggers make mapping-version content and proposal content immutable and `audit_events`
+  append-only. There is no execute/apply endpoint until Phase 4.
+- Tests never call real LLMs (`FakeLLM` in `tests/mapping_helpers.py`); live runs are opt-in:
+  `python -m pytest -m live_llm -s` (writes `docs/evidence/phase3-live-llm-run.json`).
+
 ## 10. Browser automation rules (Playwright)
 
 - Prefer documented APIs; use Playwright only for UI-only operations.

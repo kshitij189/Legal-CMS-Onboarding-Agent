@@ -18,6 +18,7 @@ dependencies = [
     "opentelemetry-instrumentation-fastapi>=0.51b0",
     "opentelemetry-instrumentation-sqlalchemy>=0.51b0",
     "opentelemetry-instrumentation-httpx>=0.51b0",
+    "google-genai>=1.30,<3",
 ]
 
 [project.optional-dependencies]
@@ -37,9 +38,10 @@ include = ["app*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra"
+addopts = '-ra -m "not live_llm"'  # live LLM calls cost quota: run with -m live_llm
 markers = [
     "live_cms: requires the mock CMS running at MOCK_CMS_BASE_URL with seeded demo data",
+    "live_llm: calls real LLM providers (needs GEMINI_API_KEY/GROQ_API_KEY; costs quota)",
 ]
 
 [tool.ruff]

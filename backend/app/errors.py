@@ -54,6 +54,12 @@ class ConnectorError(AppError):
         self.category = category  # authorization | transient | contract | configuration
 
 
+class LLMUnavailable(AppError):
+    """No configured LLM provider produced a valid proposal."""
+
+    status_code, code = 502, "llm_error"
+
+
 def error_body(code: str, message: str, details: list[dict[str, Any]]) -> dict[str, Any]:
     return {"error": {"code": code, "message": message, "details": details}}
 

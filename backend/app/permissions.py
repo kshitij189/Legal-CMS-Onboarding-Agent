@@ -6,7 +6,7 @@ from enum import StrEnum
 class Role(StrEnum):
     # Configures the firm: users, CMS connectors, projects, intake schemas (blueprint §3).
     FIRM_ADMIN = "firm_admin"
-    # Works the onboarding: schemas, target inspection; approves mappings from Phase 3 on.
+    # Works the onboarding: schemas, target inspection, mapping review and approval.
     INTEGRATION_SPECIALIST = "integration_specialist"
 
 
@@ -18,6 +18,10 @@ class Permission(StrEnum):
     PROJECTS_READ = "projects:read"
     SOURCE_SCHEMA_WRITE = "source_schema:write"
     TARGET_INSPECT = "target:inspect"
+    MAPPINGS_PROPOSE = "mappings:propose"
+    MAPPINGS_REVIEW = "mappings:review"
+    MAPPINGS_APPROVE = "mappings:approve"
+    AUDIT_READ = "audit:read"
 
 
 ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
@@ -28,6 +32,11 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.PROJECTS_READ,
             Permission.SOURCE_SCHEMA_WRITE,
             Permission.TARGET_INSPECT,
+            # Blueprint §3: the integration specialist reviews and approves mappings.
+            Permission.MAPPINGS_PROPOSE,
+            Permission.MAPPINGS_REVIEW,
+            Permission.MAPPINGS_APPROVE,
+            Permission.AUDIT_READ,
         }
     ),
 }

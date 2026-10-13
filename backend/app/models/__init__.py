@@ -262,3 +262,193 @@ class FieldDefinition(Base):
             canonical_ref=self.canonical_ref,
             extensions=self.extensions,
         )
+
+
+# --- Phase 3: proposals, review, approval, audit ------------------------------------------------
+
+GENERATION_STATUSES = ("succeeded", "failed")
+# "system": placeholder for a source field the model skipped, so a human must decide it.
+PROPOSAL_ORIGINS = ("llm", "reviewer", "system")
+REVIEW_STATUSES = ("pending", "approved", "rejected", "edited", "needs_clarification")
+VALIDATION_STATUSES = ("valid", "needs_review", "invalid")
+
+
+def _in_values(column: str, values: tuple[str, ...]) -> str:
+    return f"{column} IN ({', '.join(repr(v) for v in values)})"
+
+
+class ProposalGeneration(Base):
+    """One LLM proposal run for a pinned pair of source and target schema versions."""
+
+    __tablename__ = "proposal_generations"
+    __table_args__ = (
+        UniqueConstraint("firm_id", "id", name="uq_proposal_generations_firm_id_id"),
+        UniqueConstraint("project_id", "idempotency_key", name="uq_proposal_generations_idem"),
+        CheckConstraint(
+            _in_values("status", GENERATION_STATUSES), name="ck_proposal_generations_status"
+        ),
+        ForeignKeyConstraint(
+            ["firm_id", "project_id"],
+            ["onboarding_projects.firm_id", "onboarding_projects.id"],
+            name="fk_proposal_generations_project_same_firm",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["firm_id", "created_by_id"],
+            ["users.firm_id", "users.id"],
+            name="fk_proposal_generations_creator_same_firm",
+            ondelete="RESTRICT",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    firm_id: Mapped[int] = mapped_column(Integer, index=True)
+    project_id: Mapped[int] = mapped_column(Integer, index=True)
+    source_schema_id: Mapped[int] = mapped_column(
+        ForeignKey("schema_definitions.id", ondelete="RESTRICT")
+    )
+    target_schema_id: Mapped[int] = mapped_column(
+        ForeignKey("schema_definitions.id", ondelete="RESTRICT")
+    )
+    status: Mapped[str] = mapped_column(String(16))
+    provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    prompt_version: Mapped[str] = mapped_column(String(32))
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Providers that failed before the one that answered: [[provider, error_category], ...]
+    fallbacks: Mapped[list[list[str]]] = mapped_column(JSONB, default=list)
+    error_category: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    coverage_gaps: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    unproposed_source_fields: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    untrusted_source_fields: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    idempotency_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_by_id: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    proposals: Mapped[list["MappingProposal"]] = relationship(
+        order_by="MappingProposal.id", lazy="selectin", viewonly=True
+    )
+    created_by: Mapped[User] = relationship(lazy="joined", viewonly=True)
+
+
+class MappingProposal(Base):
+    """A proposed mapping for one source field. `content` is immutable once written; a reviewer's
+    edit is stored as a new row (origin "reviewer") that supersedes the original."""
+
+    __tablename__ = "mapping_proposals"
+    __table_args__ = (
+        CheckConstraint(_in_values("origin", PROPOSAL_ORIGINS), name="ck_mapping_proposals_origin"),
+        CheckConstraint(
+            _in_values("review_status", REVIEW_STATUSES), name="ck_mapping_proposals_review"
+        ),
+        CheckConstraint(
+            _in_values("validation_status", VALIDATION_STATUSES),
+            name="ck_mapping_proposals_validation",
+        ),
+        ForeignKeyConstraint(
+            ["firm_id", "generation_id"],
+            ["proposal_generations.firm_id", "proposal_generations.id"],
+            name="fk_mapping_proposals_generation_same_firm",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["firm_id", "reviewed_by_id"],
+            ["users.firm_id", "users.id"],
+            name="fk_mapping_proposals_reviewer_same_firm",
+            ondelete="RESTRICT",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    firm_id: Mapped[int] = mapped_column(Integer, index=True)
+    project_id: Mapped[int] = mapped_column(Integer, index=True)
+    generation_id: Mapped[int] = mapped_column(Integer, index=True)
+    origin: Mapped[str] = mapped_column(String(16))
+    supersedes_id: Mapped[int | None] = mapped_column(
+        ForeignKey("mapping_proposals.id", ondelete="RESTRICT"), nullable=True
+    )
+    source_field: Mapped[str] = mapped_column(String(200))
+    decision: Mapped[str] = mapped_column(String(32))
+    content: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    validation_status: Mapped[str] = mapped_column(String(16))
+    validation_issues: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
+    review_status: Mapped[str] = mapped_column(String(32), default="pending")
+    review_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    reviewed_by: Mapped[User | None] = relationship(lazy="joined", viewonly=True)
+
+
+class MappingVersion(Base):
+    """An approved, immutable configuration plan (blueprint §14 "approval refers to a specific
+    mapping version"). A database trigger rejects changes to its content after insert."""
+
+    __tablename__ = "mapping_versions"
+    __table_args__ = (
+        UniqueConstraint("project_id", "version", name="uq_mapping_versions_version"),
+        UniqueConstraint("generation_id", "fingerprint", name="uq_mapping_versions_generation_fp"),
+        CheckConstraint("status IN ('approved', 'superseded')", name="ck_mapping_versions_status"),
+        ForeignKeyConstraint(
+            ["firm_id", "project_id"],
+            ["onboarding_projects.firm_id", "onboarding_projects.id"],
+            name="fk_mapping_versions_project_same_firm",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["firm_id", "approved_by_id"],
+            ["users.firm_id", "users.id"],
+            name="fk_mapping_versions_approver_same_firm",
+            ondelete="RESTRICT",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    firm_id: Mapped[int] = mapped_column(Integer, index=True)
+    project_id: Mapped[int] = mapped_column(Integer, index=True)
+    version: Mapped[int] = mapped_column(Integer)
+    generation_id: Mapped[int] = mapped_column(
+        ForeignKey("proposal_generations.id", ondelete="RESTRICT")
+    )
+    source_schema_id: Mapped[int] = mapped_column(
+        ForeignKey("schema_definitions.id", ondelete="RESTRICT")
+    )
+    target_schema_id: Mapped[int] = mapped_column(
+        ForeignKey("schema_definitions.id", ondelete="RESTRICT")
+    )
+    # [{"proposal_id": int, "mapping": ProposedMapping-as-dict}, ...] for approved map and
+    # requires_custom_field decisions.
+    items: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
+    excluded: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
+    coverage_gaps: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
+    complete: Mapped[bool] = mapped_column(Boolean)
+    fingerprint: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(16), default="approved")
+    approved_by_id: Mapped[int] = mapped_column(Integer)
+    approved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    approved_by: Mapped[User] = relationship(lazy="joined", viewonly=True)
+
+
+class AuditEvent(Base):
+    """Append-only history of who did what (blueprint §11). Updates are rejected by a trigger."""
+
+    __tablename__ = "audit_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    firm_id: Mapped[int] = mapped_column(ForeignKey("firms.id", ondelete="CASCADE"), index=True)
+    project_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    actor_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
+    )
+    action: Mapped[str] = mapped_column(String(64))
+    entity_type: Mapped[str] = mapped_column(String(64))
+    entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    details: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    actor: Mapped[User | None] = relationship(lazy="joined", viewonly=True)

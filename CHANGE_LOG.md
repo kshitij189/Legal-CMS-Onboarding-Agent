@@ -234,3 +234,74 @@ opentelemetry-api / -sdk / -exporter-otlp-proto-http 1.45.1, opentelemetry-instr
 **Known issues / limitations**
 - Ground-truth expected mappings remain author-labelled; only a human review can reduce that.
 - Dev `onboarding` DB was reset and reseeded; rows from the Phase 2 manual walkthrough were removed.
+
+
+---
+
+## Phase 3 — LLM mapping proposals
+
+### 2026-10-13 — Proposals, deterministic validation, review and approval (status: COMPLETED)
+
+**Added**
+- `backend/app/agent/`: `llm_client.py` (Gemini + Groq clients, fallback chain, error
+  classification), `tool_registry.py` (allow-list with only `propose_field_mappings`, schema
+  inlining), `prompts.py` (`mapping-v1`, untrusted-data block, instruction detection),
+  `mapping_agent.py`.
+- `backend/app/schemas/mapping.py` (tool arguments, validation report), `schemas/mapping_api.py`.
+- `backend/app/domain/mapping_validator.py` (pure validator), `mapping_service.py`
+  (generate/review/approve), `audit.py`.
+- Migration `0003`: `proposal_generations`, `mapping_proposals`, `mapping_versions`,
+  `audit_events`, plus triggers enforcing immutability / append-only.
+- `backend/app/api/mappings.py`: propose, list, review, approve, versions, audit events.
+- Permissions `mappings:propose|review|approve`, `audit:read` (integration specialist; admin has all).
+- Tests: `tests/unit/test_mapping_validator.py`, `tests/unit/test_agent.py`,
+  `tests/integration/test_mappings_api.py`, `tests/integration/test_migrations.py`,
+  opt-in `tests/live/test_live_llm.py`; shared `tests/mapping_helpers.py` (`FakeLLM`).
+- Evidence: `docs/evidence/phase3-live-llm-run.json` (raw live proposals + scores).
+
+**Decisions and rationale**
+- *Forced tool calling instead of free-text JSON*: the provider must call the declared tool; its
+  arguments are validated by Pydantic, so malformed output is rejected, never repaired by guessing.
+- *Flat, null-free tool schema* (`value_map` as a list of pairs, custom-field fields inline):
+  portable across Gemini and Groq tool dialects.
+- *Gemini-only keyword stripping*: Gemini returned `400 INVALID_ARGUMENT` for the full schema;
+  removing `additionalProperties`, `default`, `min/maxLength`, `min/maxItems` from the declared
+  schema fixed it (verified live). Constraints remain enforced on the returned arguments.
+- *Defaults `gemini-3.8-flash` / `openai/gpt-oss-120b`*: `gemini-2.5-flash` is no longer offered
+  to new keys (API told us to use 3.8-flash); gpt-oss-120b supports forced tool calls on Groq.
+- *Groq over httpx, not its SDK*: one request shape, no extra dependency.
+- *Validator decides, model only proposes*: confidence can lower but never raise a status;
+  `invalid` proposals cannot be approved; `ambiguous` must be edited; `needs_review` approvals
+  need a comment; edits are new rows superseding the original (model output is never altered).
+- *Skipped fields get explicit `system` placeholders* so nothing silently drops out of review.
+- *Approval = immutable version pinned to schema versions*, fingerprinted; re-approval of the same
+  content is idempotent; schema drift invalidates pending approvals (409).
+- *Deterministic injection detection* in addition to prompt instructions: a model can be fooled,
+  a regex flag routed to human review cannot.
+- *Live LLM tests opt-in* (`-m live_llm`) because they spend limited free-tier quota.
+
+**Dependencies added (backend)**
+`google-genai` 2.29.0 (approved Gemini SDK). Groq is called via the existing `httpx`.
+
+**Tests executed (actual results)**
+- `backend: pytest` — 141 passed, 1 deselected (live). `mock-cms: pytest` — 75 passed.
+- ruff, `mypy --strict` (69 files), `alembic check`: clean.
+- Mutation check: three safety rules disabled one at a time → caught; restored → all pass.
+- Live runs (2026-10-13): see `IMPLEMENTATION_PROGRESS.md` Phase 3 table. Final run: Gemini for
+  firms A and C (171 s / 212 s), Groq fallback for B; 25/30 decisions agree with the labels,
+  23/23 clearly mappable fields correct, 0 invalid proposals.
+
+**Bugs found and fixed during the phase**
+- Migration `0003` was generated before the `system` proposal origin existed; its CHECK constraint
+  rejected placeholders (caught by an integration test). Fixed in the unreleased migration; added
+  an `alembic check` test for model/migration drift (note: CHECK constraint text is not compared).
+- Gemini 400 on the full tool schema (see decisions).
+- Prompt rule for enum targets clarified to use transformation `none`: the CMS applies the
+  transformation before the value-map lookup, so `lowercase` would break original-case keys.
+- Groq per-minute rate limit failed the third request of a burst; added a single bounded
+  `Retry-After` wait.
+
+**Known issues / limitations**
+- Gemini free tier quota (~20/day/model) and very high latency; requests often fall back to Groq.
+- Proposal generation runs synchronously within the HTTP request (until Phase 5).
+- Approved custom fields and mappings are not applied to any CMS yet (Phase 4).

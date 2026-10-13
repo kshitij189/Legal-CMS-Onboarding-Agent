@@ -6,15 +6,14 @@ A phase is `COMPLETED` only when its acceptance criteria are met and the evidenc
 **Repository inspection (2026-10-12):** the repository was empty — no source code, tests, or
 configuration existed. No phase has verifiable prior work.
 
-**Last completed phase:** Phase 2 — Schema normalization (2026-10-12).
-**Next phase to implement:** Phase 3 — LLM mapping proposals (awaiting user authorization; live-LLM
-evidence needs the keys in `.env`).
+**Last completed phase:** Phase 3 — LLM mapping proposals (2026-10-13).
+**Next phase to implement:** Phase 4 — Playwright execution (awaiting user authorization).
 
 | # | Phase | Status |
 |---|---|---|
 | 1 | Mock CMS | COMPLETED |
 | 2 | Schema normalization | COMPLETED |
-| 3 | LLM mapping proposals | NOT_STARTED |
+| 3 | LLM mapping proposals | COMPLETED |
 | 4 | Playwright execution | NOT_STARTED |
 | 5 | Durable orchestration (Temporal) | NOT_STARTED |
 | 6 | Evaluation + dashboard | NOT_STARTED |
@@ -153,26 +152,75 @@ Follow-up evidence (2026-10-13)
   `onboarding` DB was reset and reseeded (its earlier walkthrough rows predated authentication).
 
 ## Phase 3 — LLM mapping proposals
-**Status:** NOT_STARTED
+**Status:** COMPLETED (2026-10-13)
 **Objective:** LLM proposes mappings via structured tool calls; deterministic validator accepts,
 rejects or marks ambiguous. Approval and execution stay separate.
-**Depends on:** Phase 2 — satisfied. Inputs: normalized source/target schema versions per project;
-evaluate proposals against `fixtures/expected-mappings/`.
+**Depends on:** Phase 2 — satisfied.
 
 Tasks / deliverables
-- [x] Reviewer authentication per D5 (delivered early in the Phase 2 follow-up; add an
-      approval permission for `integration_specialist`)
-- [ ] Provider-neutral LLM client (Gemini primary; Groq per decision D1), prompts, typed tool registry
-- [ ] `mapping_proposals`, `mapping_versions`, `audit_events` tables
-- [ ] Deterministic `mapping_validator` (field existence, type compatibility, transformation support,
-      required coverage, authorized config area)
-- [ ] Propose/list/approve mapping endpoints; approval bound to an immutable mapping version
-- [ ] Prompt-injection handling (untrusted text as data)
+- [x] Reviewer authentication per D5 (Phase 2 follow-up) + new permissions `mappings:propose`,
+      `mappings:review`, `mappings:approve`, `audit:read` for `integration_specialist`
+- [x] Provider-neutral LLM client `agent/llm_client.py`: Gemini (`google-genai`, default
+      `gemini-3.8-flash`) → Groq (`openai/gpt-oss-120b`, httpx) fallback; forced single tool call,
+      temperature 0, Pydantic-validated arguments, classified errors, bounded retries, Groq
+      `Retry-After` wait (≤ 20 s), recorded fallbacks
+- [x] Typed tool registry (`agent/tool_registry.py`) with only `propose_field_mappings`
+      (`writes=False`); versioned prompts (`agent/prompts.py`, `mapping-v1`)
+- [x] Tables (migration `0003`): `proposal_generations`, `mapping_proposals`, `mapping_versions`,
+      `audit_events`; same-firm composite FKs; DB triggers make version and proposal content
+      immutable and audit events append-only
+- [x] Deterministic `domain/mapping_validator.py`: unknown source/target fields, duplicates,
+      unsupported/incompatible transformations, type compatibility, value-map checks (incl.
+      transformation-before-lookup), custom-field rules, unauthorized configuration area
+      (`matter.intake_status`), low confidence, duplicate targets, required-target coverage,
+      skipped fields, untrusted instruction text
+- [x] Endpoints: `POST …/propose-mappings` (Idempotency-Key), `GET …/mappings`,
+      `POST …/mappings/{id}/review`, `POST …/approve-mappings`, `GET …/mapping-versions[/{id}]`,
+      `GET …/audit-events`
+- [x] Prompt-injection handling: delimited untrusted JSON, cleaning/truncation, deterministic
+      instruction detection forcing review
 
-Acceptance criteria: proposals validated deterministically; approval references a version;
-no execution path exists from proposal without approval.
-Required evidence: unit tests with a mocked LLM; validator tests for each rejection class; one recorded
-live LLM run (if an API key is available, else BLOCKED for that item).
+Acceptance criteria — all met
+- [x] Proposals are validated deterministically (pure validator; statuses stored per proposal;
+      final approved set re-validated as a whole).
+- [x] Approval references a version: `approve-mappings` creates an immutable `mapping_versions`
+      row (version number, fingerprint, pinned source/target schema ids); schema drift → 409.
+- [x] No execution path from a proposal without approval: no execute/apply endpoint exists, the
+      LLM tool registry has no write tools (both asserted by tests).
+
+Validation evidence (2026-10-13)
+- `backend: pytest` — **141 passed**, 1 deselected (`live_llm`, opt-in). `mock-cms` — 75 passed.
+  ruff + `mypy --strict` (69 files): clean. `alembic check`: models match migrations.
+- Validator: 14 parametrised rejection classes + 8 review classes + ground-truth tests.
+- Mocked-LLM API flow: propose → review (approve/reject/edit/clarify rules) → approve → v1;
+  idempotent re-approval; supersession by v2; schema-drift 409; duplicate targets 422; LLM
+  failure 502 recorded as failed generation + audit event; skipped field placeholder; cross-firm
+  404; DB immutability triggers.
+- Mutation check: allowing approval of invalid proposals, skipping the schema-drift check, and
+  downgrading unknown-target errors → each caught by tests; restored → all pass.
+- **Live LLM run** (`docs/evidence/phase3-live-llm-run.json`, 2026-10-13 07:15 UTC, timeout 240 s):
+  | Firm | Provider | Latency | Validation (valid/review/invalid) | Agreement with labels | Clearly mappable |
+  |---|---|---|---|---|---|
+  | A | gemini-3.8-flash | 171 s | 9 / 1 / 0 | 9/10 | 8/8 |
+  | B | groq gpt-oss-120b (Gemini timed out → fallback) | 5 s | 9 / 1 / 0 | 9/10 | 8/8 |
+  | C | gemini-3.8-flash | 212 s | 7 / 3 / 0 | 7/10 | 7/7 |
+  All disagreements are judgement calls that the validator routed to human review
+  (`requires_custom_field` instead of `no_target` ×3; `review_state` proposed as ambiguous with
+  `matter.intake_status` as candidate — which the validator would reject as unauthorized). The
+  injected `notes` label was not obeyed: the model mapped by meaning, flagged the text in
+  `open_questions`, and the validator forced review (`untrusted_instruction_text`).
+  Earlier runs the same day: Groq-only (Gemini 400 → fixed by stripping unsupported schema
+  keywords; Gemini quota) gave A 9/10, B 10/10, C 7/10. Synthetic data; not proof of real-world
+  accuracy.
+
+Known limitations
+- Gemini free tier: ~20 requests/day/model and 2–4 minute latencies observed; with the default
+  90 s timeout requests will often fall back to Groq. Set `LLM_TIMEOUT_SECONDS` higher to wait.
+- Proposal generation is synchronous inside the HTTP request (minutes with Gemini). Durable,
+  asynchronous runs arrive with Temporal (Phase 5).
+- Custom-field proposals are approved into the plan but not created anywhere yet (Phase 4).
+- OpenTelemetry records LLM provider/model/token counts, not prompts; no Langfuse (optional, not
+  opted in).
 
 ## Phase 4 — Playwright execution
 **Status:** NOT_STARTED
@@ -242,5 +290,5 @@ None.
 None for completed work. Phase 3 live-LLM evidence depends on D6.
 
 ## Next steps
-1. User fills `GEMINI_API_KEY` / `GROQ_API_KEY` in the root `.env`.
-2. User to authorize Phase 3 — LLM mapping proposals.
+1. User to authorize Phase 4 — Playwright execution (applies an approved mapping version to
+   the mock CMS, reads it back and verifies).
