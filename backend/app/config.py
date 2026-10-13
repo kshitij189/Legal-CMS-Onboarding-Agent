@@ -38,6 +38,12 @@ class Settings:
     allow_signup: bool
     browser_timeout_ms: int
     browser_headless: bool
+    # "temporal": runs execute in durable workflows on a worker; "inline": in the API process
+    # (tests and environments without Temporal).
+    orchestrator: str
+    temporal_address: str
+    temporal_namespace: str
+    temporal_task_queue: str
 
 
 @lru_cache
@@ -53,4 +59,8 @@ def get_settings() -> Settings:
         allow_signup=os.environ.get("ONBOARDING_ALLOW_SIGNUP", "true").lower() == "true",
         browser_timeout_ms=int(os.environ.get("ONBOARDING_BROWSER_TIMEOUT_MS", "5000")),
         browser_headless=os.environ.get("ONBOARDING_BROWSER_HEADLESS", "true").lower() == "true",
+        orchestrator=os.environ.get("ONBOARDING_ORCHESTRATOR", "temporal"),
+        temporal_address=os.environ.get("ONBOARDING_TEMPORAL_ADDRESS", "localhost:7234"),
+        temporal_namespace=os.environ.get("ONBOARDING_TEMPORAL_NAMESPACE", "default"),
+        temporal_task_queue=os.environ.get("ONBOARDING_TEMPORAL_TASK_QUEUE", "onboarding-runs"),
     )

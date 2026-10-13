@@ -1,0 +1,512 @@
+{
+  "scenario": "worker container killed mid-run (browser channel) and restarted",
+  "proposals": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b"
+  },
+  "approved_items": 9,
+  "run": {
+    "id": 1,
+    "created": false,
+    "workflow_id": "onboarding-run-d35fc6c3-db46-4240-b5e2-9e1e96dfb3fa",
+    "mapping_version_id": 1,
+    "channel": "browser",
+    "status": "succeeded",
+    "error_category": null,
+    "error_message": null,
+    "drift_issues": [],
+    "config_revision_before": 0,
+    "config_revision_after": 10,
+    "artifact_dir": null,
+    "created_by": "b.specialist",
+    "started_at": "2026-10-13T14:37:09.348020Z",
+    "finished_at": "2026-10-13T14:38:43.233172Z",
+    "summary": {
+      "steps": {
+        "applied": 10
+      },
+      "verification": {
+        "match": 10
+      }
+    },
+    "steps": [
+      {
+        "sequence": 1,
+        "action_type": "create_custom_field",
+        "subject": "contact.custom.referral_source",
+        "status": "applied",
+        "attempts": 1,
+        "error_category": null,
+        "error_message": null,
+        "evidence": {
+          "notice": "Saved. Configuration revision 1.",
+          "changed": true,
+          "channel": "browser"
+        },
+        "payload": {
+          "mapping": null,
+          "subject": "contact.custom.referral_source",
+          "sequence": 1,
+          "action_type": "create_custom_field",
+          "custom_field": {
+            "name": "referral_source",
+            "label": "How did you hear about us?",
+            "entity": "contact",
+            "options": null,
+            "required": false,
+            "data_type": "string"
+          }
+        }
+      },
+      {
+        "sequence": 2,
+        "action_type": "upsert_intake_mapping",
+        "subject": "adverse_party",
+        "status": "applied",
+        "attempts": 1,
+        "error_category": null,
+        "error_message": null,
+        "evidence": {
+          "notice": "Saved. Configuration revision 2.",
+          "changed": true,
+          "channel": "browser"
+        },
+        "payload": {
+          "mapping": {
+            "value_map": null,
+            "source_key": "adverse_party",
+            "target_field": "matter.opposing_party",
+            "transformation": "trim"
+          },
+          "subject": "adverse_party",
+          "sequence": 2,
+          "action_type": "upsert_intake_mapping",
+          "custom_field": null
+        }
+      },
+      {
+        "sequence": 3,
+        "action_type": "upsert_intake_mapping",
+        "subject": "case_category",
+        "status": "applied",
+        "attempts": 1,
+        "error_category": null,
+        "error_message": null,
+        "evidence": {
+          "notice": "Saved. Configuration revision 3.",
+          "changed": true,
+          "channel": "browser"
+        },
+        "payload": {
+          "mapping": {
+            "value_map": {
+              "Business": "business",
+              "Family Law": "family_law",
+              "Real Estate": "real_estate",
+              "Employment Law": "employment"
+            },
+            "source_key": "case_category",
+            "target_field": "matter.practice_area",
+            "transformation": "none"
+          },
+          "subject": "case_category",
+          "sequence": 3,
+          "action_type": "upsert_intake_mapping",
+          "custom_field": null
+        }
+      },
+      {
+        "sequence": 4,
+        "action_type": "upsert_intake_mapping",
+        "subject": "case_summary",
+        "status": "applied",
+        "attempts": 1,
+        "error_category": null,
+        "error_message": null,
+        "evidence": {
+          "notice": "Saved. Configuration revision 4.",
+          "changed": true,
+          "channel": "browser"
+        },
+        "payload": {
+          "mapping": {
+            "value_map": null,
+            "source_key": "case_summary",
+            "target_field": "matter.summary",
+            "transformation": "trim"
+          },
+          "subject": "case_summary",
+          "sequence": 4,
+          "action_type": "upsert_intake_mapping",
+          "custom_field": null
+        }
+      },
+      {
+        "sequence": 5,
+        "action_type": "upsert_intake_mapping",
+        "subject": "contact_email",
+        "status": "applied",
+        "attempts": 1,
+        "error_category": null,
+        "error_message": null,
+        "evidence": {
+          "notice": "Saved. Configuration revision 5.",
+          "changed": true,
+          "channel": "browser"
+        },
+        "payload": {
+          "mapping": {
+            "value_map": null,
+            "source_key": "contact_email",
+            "target_field": "contact.email",
+            "transformation": "lowercase"
+          },
+          "subject": "contact_email",
+          "sequence": 5,
+          "action_type": "upsert_intake_mapping",
+          "custom_field": null
+        }
+      },
+      {
+        "sequence": 6,
+        "action_type": "upsert_intake_mapping",
+        "subject": "contact_name",
+        "status": "applied",
+        "attempts": 1,
+        "error_category": null,
+        "error_message": null,
+        "evidence": {
+          "notice": "Saved. Configuration revision 6.",
+          "changed": true,
+          "channel": "browser"
+        },
+        "payload": {
+          "mapping": {
+            "value_map": null,
+            "source_key": "contact_name",
+            "target_field": "contact.full_name",
+            "transformation": "trim"
+          },
+          "subject": "contact_name",
+          "sequence": 6,
+          "action_type": "upsert_intake_mapping",
+          "custom_field": null
+        }
+      },
+      {
+        "sequence": 7,
+        "action_type": "upsert_intake_mapping",
+        "subject": "contact_phone",
+        "status": "applied",
+        "attempts": 1,
+        "error_category": null,
+        "error_message": null,
+        "evidence": {
+          "notice": "Saved. Configuration revision 7.",
+          "changed": true,
+          "channel": "browser"
+        },
+        "payload": {
+          "mapping": {
+            "value_map": null,
+            "source_key": "contact_phone",
+            "target_field": "contact.phone_number",
+            "transformation": "normalize_phone"
+          },
+          "subject": "contact_phone",
+          "sequence": 7,
+          "action_type": "upsert_intake_mapping",
+          "custom_field": null
+        }
+      },
+      {
+        "sequence": 8,
+        "action_type": "upsert_intake_mapping",
+        "subject": "court_jurisdiction",
+        "status": "applied",
+        "attempts": 1,
+        "error_category": null,
+        "error_message": null,
+        "evidence": {
+          "notice": "Saved. Configuration revision 8.",
+          "changed": true,
+          "channel": "browser"
+        },
+        "payload": {
+          "mapping": {
+            "value_map": null,
+            "source_key": "court_jurisdiction",
+            "target_field": "matter.jurisdiction",
+            "transformation": "trim"
+          },
+          "subject": "court_jurisdiction",
+          "sequence": 8,
+          "action_type": "upsert_intake_mapping",
+          "custom_field": null
+        }
+      },
+      {
+        "sequence": 9,
+        "action_type": "upsert_intake_mapping",
+        "subject": "preferred_contact",
+        "status": "applied",
+        "attempts": 1,
+        "error_category": null,
+        "error_message": null,
+        "evidence": {
+          "notice": "Saved. Configuration revision 9.",
+          "changed": true,
+          "channel": "browser"
+        },
+        "payload": {
+          "mapping": {
+            "value_map": {
+              "Email": "email",
+              "Phone": "phone",
+              "Text message": "sms"
+            },
+            "source_key": "preferred_contact",
+            "target_field": "contact.preferred_contact_method",
+            "transformation": "none"
+          },
+          "subject": "preferred_contact",
+          "sequence": 9,
+          "action_type": "upsert_intake_mapping",
+          "custom_field": null
+        }
+      },
+      {
+        "sequence": 10,
+        "action_type": "upsert_intake_mapping",
+        "subject": "referral_source",
+        "status": "applied",
+        "attempts": 1,
+        "error_category": null,
+        "error_message": null,
+        "evidence": {
+          "notice": "Saved. Configuration revision 10.",
+          "changed": true,
+          "channel": "browser"
+        },
+        "payload": {
+          "mapping": {
+            "value_map": null,
+            "source_key": "referral_source",
+            "target_field": "contact.custom.referral_source",
+            "transformation": "none"
+          },
+          "subject": "referral_source",
+          "sequence": 10,
+          "action_type": "upsert_intake_mapping",
+          "custom_field": null
+        }
+      }
+    ],
+    "verification": [
+      {
+        "subject": "contact.custom.referral_source",
+        "check_type": "custom_field",
+        "status": "match",
+        "reason": "stored as approved",
+        "expected": {
+          "name": "referral_source",
+          "label": "How did you hear about us?",
+          "entity": "contact",
+          "options": null,
+          "required": false,
+          "data_type": "string"
+        },
+        "actual": {
+          "key": "contact.custom.referral_source",
+          "label": "How did you hear about us?",
+          "entity": "contact",
+          "enabled": true,
+          "options": null,
+          "required": false,
+          "data_type": "string",
+          "is_custom": true
+        }
+      },
+      {
+        "subject": "adverse_party",
+        "check_type": "mapping",
+        "status": "match",
+        "reason": "stored as approved",
+        "expected": {
+          "value_map": null,
+          "source_key": "adverse_party",
+          "target_field": "matter.opposing_party",
+          "transformation": "trim"
+        },
+        "actual": {
+          "value_map": null,
+          "source_key": "adverse_party",
+          "target_field": "matter.opposing_party",
+          "transformation": "trim"
+        }
+      },
+      {
+        "subject": "case_category",
+        "check_type": "mapping",
+        "status": "match",
+        "reason": "stored as approved",
+        "expected": {
+          "value_map": {
+            "Business": "business",
+            "Family Law": "family_law",
+            "Real Estate": "real_estate",
+            "Employment Law": "employment"
+          },
+          "source_key": "case_category",
+          "target_field": "matter.practice_area",
+          "transformation": "none"
+        },
+        "actual": {
+          "value_map": {
+            "Business": "business",
+            "Family Law": "family_law",
+            "Real Estate": "real_estate",
+            "Employment Law": "employment"
+          },
+          "source_key": "case_category",
+          "target_field": "matter.practice_area",
+          "transformation": "none"
+        }
+      },
+      {
+        "subject": "case_summary",
+        "check_type": "mapping",
+        "status": "match",
+        "reason": "stored as approved",
+        "expected": {
+          "value_map": null,
+          "source_key": "case_summary",
+          "target_field": "matter.summary",
+          "transformation": "trim"
+        },
+        "actual": {
+          "value_map": null,
+          "source_key": "case_summary",
+          "target_field": "matter.summary",
+          "transformation": "trim"
+        }
+      },
+      {
+        "subject": "contact_email",
+        "check_type": "mapping",
+        "status": "match",
+        "reason": "stored as approved",
+        "expected": {
+          "value_map": null,
+          "source_key": "contact_email",
+          "target_field": "contact.email",
+          "transformation": "lowercase"
+        },
+        "actual": {
+          "value_map": null,
+          "source_key": "contact_email",
+          "target_field": "contact.email",
+          "transformation": "lowercase"
+        }
+      },
+      {
+        "subject": "contact_name",
+        "check_type": "mapping",
+        "status": "match",
+        "reason": "stored as approved",
+        "expected": {
+          "value_map": null,
+          "source_key": "contact_name",
+          "target_field": "contact.full_name",
+          "transformation": "trim"
+        },
+        "actual": {
+          "value_map": null,
+          "source_key": "contact_name",
+          "target_field": "contact.full_name",
+          "transformation": "trim"
+        }
+      },
+      {
+        "subject": "contact_phone",
+        "check_type": "mapping",
+        "status": "match",
+        "reason": "stored as approved",
+        "expected": {
+          "value_map": null,
+          "source_key": "contact_phone",
+          "target_field": "contact.phone_number",
+          "transformation": "normalize_phone"
+        },
+        "actual": {
+          "value_map": null,
+          "source_key": "contact_phone",
+          "target_field": "contact.phone_number",
+          "transformation": "normalize_phone"
+        }
+      },
+      {
+        "subject": "court_jurisdiction",
+        "check_type": "mapping",
+        "status": "match",
+        "reason": "stored as approved",
+        "expected": {
+          "value_map": null,
+          "source_key": "court_jurisdiction",
+          "target_field": "matter.jurisdiction",
+          "transformation": "trim"
+        },
+        "actual": {
+          "value_map": null,
+          "source_key": "court_jurisdiction",
+          "target_field": "matter.jurisdiction",
+          "transformation": "trim"
+        }
+      },
+      {
+        "subject": "preferred_contact",
+        "check_type": "mapping",
+        "status": "match",
+        "reason": "stored as approved",
+        "expected": {
+          "value_map": {
+            "Email": "email",
+            "Phone": "phone",
+            "Text message": "sms"
+          },
+          "source_key": "preferred_contact",
+          "target_field": "contact.preferred_contact_method",
+          "transformation": "none"
+        },
+        "actual": {
+          "value_map": {
+            "Email": "email",
+            "Phone": "phone",
+            "Text message": "sms"
+          },
+          "source_key": "preferred_contact",
+          "target_field": "contact.preferred_contact_method",
+          "transformation": "none"
+        }
+      },
+      {
+        "subject": "referral_source",
+        "check_type": "mapping",
+        "status": "match",
+        "reason": "stored as approved",
+        "expected": {
+          "value_map": null,
+          "source_key": "referral_source",
+          "target_field": "contact.custom.referral_source",
+          "transformation": "none"
+        },
+        "actual": {
+          "value_map": null,
+          "source_key": "referral_source",
+          "target_field": "contact.custom.referral_source",
+          "transformation": "none"
+        }
+      }
+    ]
+  }
+}

@@ -411,3 +411,64 @@ with another application (279 Flash Lite requests that day were not from this pr
   Phase 5 (durable orchestration/recovery) — documented, not yet automated.
 - Firm-level requirement changes (e.g. making a CMS field required) are not part of approved plans
   yet; only mappings and custom fields are executed.
+
+
+---
+
+## Phase 5 — Durable orchestration
+
+### 2026-10-13 — Temporal workflows, resumable stages, crash recovery (status: COMPLETED)
+
+**Added / changed**
+- Compose: `temporal` (`temporalio/temporal:1.9.1` dev server, 127.0.0.1:7234 gRPC / :8234 UI,
+  volume `temporal-data` at the non-root user's home) and `worker` (backend image,
+  `python -m app.workflows.worker`, shares backend settings via YAML anchors).
+- `backend/app/workflows/`: `onboarding_run.py` (workflow), `activities.py`, `client.py`
+  (idempotent start, reuse policy `ALLOW_DUPLICATE_FAILED_ONLY`), `worker.py` (start-up recovery
+  of runs without a workflow).
+- `backend/app/domain/execution_service.py` split into stages: `create_run`, `preflight`,
+  `pending_steps`, `execute_step`, `finalize`, `fail_run`, `run_inline`. Attempts committed before
+  writes; steps re-read the CMS first and record interrupted-after-write steps as applied
+  (`after_interruption`). Test-only fault injection `ONBOARDING_FAULT_CRASH_AFTER_WRITE`.
+- `POST /execute`: creates the run, dispatches to Temporal (202) or inline; `workflow_id` in run
+  output; orchestrator unreachable → run failed + 503 `orchestrator_unavailable`.
+- Migration `0005`: `onboarding_runs.workflow_id` (unique, named constraint).
+- Settings `ONBOARDING_ORCHESTRATOR`, `ONBOARDING_TEMPORAL_ADDRESS|NAMESPACE|TASK_QUEUE`.
+- Tests: `tests/e2e/harness.py` (shared mock CMS harness, session-scoped), 
+  `tests/e2e/test_durable_runs.py` (real Temporal + worker processes). Evidence
+  `docs/evidence/phase5-worker-kill-run.json`.
+
+**Decisions and rationale**
+- *One activity per step* so a crash loses at most one in-flight step, and heartbeats let Temporal
+  move it to a live worker quickly (20 s) instead of waiting for the step timeout.
+- *Safety stays in the stages, not in Temporal*: Temporal guarantees the work is retried; the
+  stages guarantee a retry never repeats a side effect (attempt recorded before writing +
+  read-before-write).
+- *Random workflow ids per run*: database resets cannot collide with old workflows in Temporal.
+- *Approval signal not built*: approval is already a durable, immutable record checked before a
+  workflow exists; a signal would be a second gate with no added safety.
+- *Inline orchestrator kept* for tests and Temporal-less environments; both modes run the same
+  stage functions, and the Temporal path has its own end-to-end tests.
+- *Per-test task queues* in durable tests, so stray tasks from other runs are never consumed.
+
+**Dependencies added (backend)** `temporalio` 1.34.0 (approved stack). Image
+`temporalio/temporal:1.9.1` (already used on this machine by another project).
+
+**Tests executed (actual results)**
+- `backend: pytest` — 176 passed, 1 deselected (live LLM); 4 durable-run tests against real
+  Temporal and worker processes. `mock-cms: pytest` — 76 passed. ruff + mypy clean.
+- Mutation: read-before-write disabled → resumed worker re-creates the custom field → test fails.
+- Full-stack containers: worker container killed mid browser run and restarted → run succeeded,
+  10/10 verified, every step one attempt, CMS revision 0 → 10.
+
+**Bugs found and fixed**
+- `temporalio` missing from `pyproject.toml` (local venv masked it; containers crashed).
+- Root-owned Temporal volume vs non-root image user (mount moved, not run as root).
+- Unnamed unique constraint made `0005` irreversible (named; dev DB repaired with SQL).
+- Phase 2/4 test expectations unaffected; durable test plan count corrected (9 actions for firm C).
+
+**Known issues / limitations**
+- Temporal dev server (SQLite) is a local setup, not production topology.
+- Required-field changes in plans: deferred by the user.
+- The demo databases now contain a completed Firm B onboarding from the container test
+  (reset commands in CLAUDE.md).

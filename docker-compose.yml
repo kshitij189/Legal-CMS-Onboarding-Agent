@@ -32,10 +32,10 @@ services:
   backend:
     build: ./backend
     # Optional git-ignored secrets file (GEMINI_API_KEY, GROQ_API_KEY, ...).
-    env_file:
+    env_file: &backend-env-file
       - path: .env
         required: false
-    environment:
+    environment: &backend-env
       ONBOARDING_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-lcms}:${POSTGRES_PASSWORD:-lcms_dev_password}@postgres:5432/onboarding
       # Inside the Compose network the mock CMS is reached by service name.
       ONBOARDING_ALLOWED_CMS_ORIGINS: http://mock-cms:8100
@@ -49,6 +49,9 @@ services:
       ONBOARDING_SECRET_FIRM_B_MOCK_CMS_PASSWORD: ${MOCK_CMS_SEED_PASSWORD:-demo-password}
       ONBOARDING_SECRET_FIRM_C_MOCK_CMS_USERNAME: c.integration
       ONBOARDING_SECRET_FIRM_C_MOCK_CMS_PASSWORD: ${MOCK_CMS_SEED_PASSWORD:-demo-password}
+      # Durable runs (Phase 5): executed by the worker through Temporal.
+      ONBOARDING_ORCHESTRATOR: temporal
+      ONBOARDING_TEMPORAL_ADDRESS: temporal:7233
       # Tracing: "none" by default; set OTEL_TRACES_EXPORTER=otlp and start the jaeger profile.
       OTEL_TRACES_EXPORTER: ${OTEL_TRACES_EXPORTER:-none}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
@@ -62,6 +65,37 @@ services:
         condition: service_healthy
       mock-cms:
         condition: service_started
+      temporal:
+        condition: service_started
+
+  # Executes onboarding runs (API and browser channels) as Temporal activities.
+  worker:
+    build: ./backend
+    command: ["python", "-m", "app.workflows.worker"]
+    env_file: *backend-env-file
+    environment:
+      <<: *backend-env
+      OTEL_SERVICE_NAME: onboarding-worker
+    volumes:
+      - ./artifacts:/srv/artifacts
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+
+  # Durable orchestration (decision D4: our own instance; 7233/8233 belong to another project).
+  temporal:
+    image: temporalio/temporal:1.9.1
+    entrypoint: ["temporal"]
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--db-filename", "/home/temporal/temporal.db"]
+    ports:
+      - "127.0.0.1:7234:7233"  # gRPC (workers, clients)
+      - "127.0.0.1:8234:8233"  # web UI
+    volumes:
+      # Mounted on the image user's home so the non-root `temporal` user owns it.
+      - temporal-data:/home/temporal
 
   # Trace viewer, opt-in: docker compose --profile observability up -d jaeger
   jaeger:
@@ -75,3 +109,4 @@ services:
 
 volumes:
   pgdata:
+  temporal-data:

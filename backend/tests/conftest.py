@@ -13,6 +13,8 @@ ARTIFACTS_DIR = Path(tempfile.mkdtemp(prefix="onboarding-artifacts-"))
 # Must be set before app settings are first read.
 os.environ["ONBOARDING_DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["ONBOARDING_ARTIFACTS_DIR"] = str(ARTIFACTS_DIR)
+# Tests execute runs inline unless they exercise Temporal explicitly (tests/e2e durable tests).
+os.environ.setdefault("ONBOARDING_ORCHESTRATOR", "inline")
 # 8199/8198: mock CMS processes started by the e2e browser tests (UI v1 / v2).
 os.environ.setdefault(
     "ONBOARDING_ALLOWED_CMS_ORIGINS",

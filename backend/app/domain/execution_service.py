@@ -10,9 +10,15 @@ Safety rules (blueprint §10, §14; CLAUDE.md §11):
   the change is absent is it attempted once more.
 - The first failure stops the run; later steps are skipped, never improvised.
 - Success is decided by read-after-write verification, not by the writer's own report.
+
+Execution is split into stages (create_run -> preflight -> execute_step per step -> finalize) that
+reload their state by run id, so a durable orchestrator (Temporal, Phase 5) can run each stage as
+an activity and retry it after a crash without repeating completed side effects.
 """
 
 import logging
+import os
+import uuid
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -39,7 +45,6 @@ from app.models import (
     utcnow,
 )
 from app.schemas.execution import (
-    CMSConfiguration,
     PlannedAction,
     WriteOutcome,
 )
@@ -60,16 +65,15 @@ def _schema(db: Session, schema_id: int) -> SchemaDefinition:
     return schema
 
 
-def start_run(
+def create_run(
     db: Session,
     user: User,
     project: OnboardingProject,
     mapping_version_id: int,
     channel: str,
     idempotency_key: str | None,
-    reader_factory: ReaderFactory,
-    writer_factory: WriterFactory,
 ) -> tuple[OnboardingRun, bool]:
+    """Validate and persist a run with its full plan. Writes nothing to the CMS."""
     if idempotency_key:
         existing = db.scalar(
             select(OnboardingRun).where(
@@ -124,6 +128,7 @@ def start_run(
         channel=channel,
         status="running",
         idempotency_key=idempotency_key,
+        workflow_id=f"onboarding-run-{uuid.uuid4()}",
         created_by_id=user.id,
     )
     db.add(run)
@@ -159,27 +164,186 @@ def start_run(
     )
     # Persist the plan before any side effect, so an interruption leaves a full record.
     db.commit()
-
-    with tracer.start_as_current_span(
-        "execute_run", attributes={"onboarding.run_id": run.id, "execution.channel": channel}
-    ):
-        try:
-            _execute(
-                db,
-                user,
-                project,
-                run,
-                plan,
-                _schema(db, version.target_schema_id),
-                reader_factory,
-                writer_factory,
-            )
-        except Exception:  # never leave a run silently "running"
-            log.exception("Run %s crashed", run.id)
-            db.rollback()
-            _finish(db, user, project, run, "failed", "internal", "Unexpected executor error.")
-    db.refresh(run)
     return run, True
+
+
+# --- stages -------------------------------------------------------------------------------------
+# Each stage loads everything it needs by run id and is safe to call again (Temporal retries an
+# activity after a worker crash): finished work is recognised from the database or the CMS.
+
+
+def _load_run(db: Session, run_id: int) -> OnboardingRun:
+    run = db.get(OnboardingRun, run_id)
+    if run is None:
+        raise NotFound(f"Onboarding run {run_id} not found.")
+    return run
+
+
+def _project(db: Session, run: OnboardingRun) -> OnboardingProject:
+    project = db.get(OnboardingProject, run.project_id)
+    assert project is not None  # noqa: S101 - FK guarantees
+    return project
+
+
+def _plan(db: Session, run: OnboardingRun) -> dict[int, PlannedAction]:
+    return {
+        s.sequence: PlannedAction.model_validate(s.payload)
+        for s in db.scalars(select(ActionStep).where(ActionStep.run_id == run.id))
+    }
+
+
+def preflight(db: Session, run_id: int, reader_factory: ReaderFactory) -> bool:
+    """Read the CMS and check drift. Returns False if the run must not write anything."""
+    run = _load_run(db, run_id)
+    if run.status != "running":
+        return False
+    if run.config_revision_before is not None:  # already passed pre-flight before an interruption
+        return True
+    project = _project(db, run)
+    try:
+        config = reader_factory(project.connector).read_configuration()
+    except ConnectorError as exc:
+        _skip_pending(db, run)
+        _finish(db, run, "failed", exc.category, exc.message)
+        return False
+    version = db.get(MappingVersion, run.mapping_version_id)
+    assert version is not None  # noqa: S101
+    drift = check_drift(
+        _schema(db, version.target_schema_id).to_normalized(),
+        config,
+        list(_plan(db, run).values()),
+    )
+    run.drift_issues = [d.model_dump(mode="json") for d in drift]
+    if any(d.blocking for d in drift):
+        _skip_pending(db, run)
+        _finish(
+            db,
+            run,
+            "blocked",
+            "target_drift",
+            "The CMS changed since approval; inspect the target and re-approve.",
+        )
+        return False
+    run.config_revision_before = config.config_revision
+    db.commit()
+    return True
+
+
+def pending_steps(db: Session, run_id: int) -> list[int]:
+    return list(
+        db.scalars(
+            select(ActionStep.sequence)
+            .where(ActionStep.run_id == run_id, ActionStep.status == "pending")
+            .order_by(ActionStep.sequence)
+        )
+    )
+
+
+def _maybe_crash_after_write(run: OnboardingRun, step: ActionStep) -> None:
+    """Fault injection for recovery tests only: kill the process right after a successful write,
+    before the outcome is recorded — the worst moment for a crash. Fires once per step."""
+    if os.environ.get("ONBOARDING_FAULT_CRASH_AFTER_WRITE") != step.subject:
+        return
+    marker = get_settings().artifacts_dir / "runs" / str(run.id) / f"crashed-step-{step.sequence}"
+    if marker.exists():
+        return
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text("crashed after write\n", encoding="utf-8")
+    log.warning("Fault injection: crashing after write of step %s", step.sequence)
+    os._exit(70)
+
+
+def execute_step(
+    db: Session,
+    run_id: int,
+    sequence: int,
+    reader_factory: ReaderFactory,
+    writer_factory: WriterFactory,
+    heartbeat: Callable[[], None] = lambda: None,
+) -> str:
+    """Apply one planned action and return the step's final status."""
+    run = _load_run(db, run_id)
+    step = db.scalar(
+        select(ActionStep).where(ActionStep.run_id == run_id, ActionStep.sequence == sequence)
+    )
+    if step is None:
+        raise NotFound(f"Step {sequence} of run {run_id} not found.")
+    if step.status != "pending":
+        return step.status  # finished before an interruption: never redo
+    if run.status != "running":
+        step.status = "skipped"
+        db.commit()
+        return step.status
+    project = _project(db, run)
+    action = PlannedAction.model_validate(step.payload)
+    with tracer.start_as_current_span(
+        "action_step",
+        attributes={
+            "onboarding.run_id": run.id,
+            "step.sequence": step.sequence,
+            "step.action": step.action_type,
+        },
+    ):
+        reader = reader_factory(project.connector)
+        try:
+            config = reader.read_configuration()
+        except ConnectorError as exc:
+            _fail_step(db, step, exc)
+            return step.status
+        heartbeat()
+        state = action_state(action, config)
+        if state == "done":
+            step.started_at = step.started_at or utcnow()
+            if step.attempts > 0:
+                # A previous attempt wrote, then was interrupted before recording the outcome.
+                step.status = "applied"
+                step.evidence = {
+                    "resolved_by_read_back": True,
+                    "after_interruption": True,
+                    "previous_attempts": step.attempts,
+                }
+            else:
+                step.status = "already_applied"
+                step.evidence = {"reason": "state already matched before writing"}
+            step.finished_at = utcnow()
+            db.commit()
+            return step.status
+        if state == "conflict":
+            _fail_step(
+                db,
+                step,
+                ConnectorError(
+                    "conflict", "The CMS holds a different value that this plan may not overwrite."
+                ),
+            )
+            return step.status
+
+        relative_dir = Path("runs") / str(run.id)
+        writer = writer_factory(
+            project.connector, run.channel, get_settings().artifacts_dir / relative_dir
+        )
+        try:
+            with writer:
+                _write_with_readback(db, run, step, action, writer, reader, heartbeat)
+        except ConnectorError as exc:  # session-level, e.g. browser login refused
+            if step.status == "pending":
+                _fail_step(db, step, exc)
+        except Exception as exc:  # driver crashes are failures, never "probably fine"
+            log.exception("Writer crashed in run %s step %s", run.id, step.sequence)
+            if step.status == "pending":
+                _fail_step(
+                    db,
+                    step,
+                    ConnectorError("browser_error", f"Writer error: {type(exc).__name__}."),
+                )
+        saved = list(getattr(writer, "saved_artifacts", []))
+        blocked = list(getattr(writer, "blocked_requests", []))
+        if saved:
+            run.artifact_dir = relative_dir.as_posix()
+        if step.status == "failed" and (saved or blocked):
+            step.evidence = {**step.evidence, "artifacts": saved, "blocked_requests": blocked}
+        db.commit()
+        return step.status
 
 
 def _apply(writer: ConfigurationWriter, action: PlannedAction) -> WriteOutcome:
@@ -189,91 +353,82 @@ def _apply(writer: ConfigurationWriter, action: PlannedAction) -> WriteOutcome:
     return writer.upsert_mapping(action.mapping)
 
 
-def _execute(
+def _write_with_readback(
     db: Session,
-    user: User,
-    project: OnboardingProject,
     run: OnboardingRun,
-    plan: list[PlannedAction],
-    target_schema: SchemaDefinition,
-    reader_factory: ReaderFactory,
-    writer_factory: WriterFactory,
+    step: ActionStep,
+    action: PlannedAction,
+    writer: ConfigurationWriter,
+    reader: ConfigurationReader,
+    heartbeat: Callable[[], None],
 ) -> None:
-    steps = {
-        s.sequence: s for s in db.scalars(select(ActionStep).where(ActionStep.run_id == run.id))
-    }
-    try:
-        reader = reader_factory(project.connector)
-        config = reader.read_configuration()
-    except ConnectorError as exc:
-        _finish(db, user, project, run, "failed", exc.category, exc.message)
-        return
-    run.config_revision_before = config.config_revision
-
-    drift = check_drift(target_schema.to_normalized(), config, plan)
-    run.drift_issues = [d.model_dump(mode="json") for d in drift]
-    if any(d.blocking for d in drift):
-        for step in steps.values():
-            step.status = "skipped"
-        _finish(
-            db,
-            user,
-            project,
-            run,
-            "blocked",
-            "target_drift",
-            "The CMS changed since approval; inspect the target and re-approve.",
-        )
-        return
-
-    relative_dir = Path("runs") / str(run.id)
-    artifacts_dir = get_settings().artifacts_dir / relative_dir
-    failure: ConnectorError | None = None
-    writer = writer_factory(project.connector, run.channel, artifacts_dir)
-    try:
-        with writer:
-            for action in plan:
-                step = steps[action.sequence]
-                failure, config = _run_step(db, step, action, writer, reader, config)
-                if failure is not None:
-                    break
-    except ConnectorError as exc:  # session-level failures, e.g. browser login refused
-        failure = exc
-    except Exception as exc:  # browser/driver crashes are failures, never "probably fine"
-        log.exception("Writer crashed in run %s", run.id)
-        failure = ConnectorError("browser_error", f"Writer error: {type(exc).__name__}.")
-    saved = list(getattr(writer, "saved_artifacts", []))
-    if saved:
-        run.artifact_dir = relative_dir.as_posix()
-    blocked = list(getattr(writer, "blocked_requests", []))
-    for step in steps.values():
-        if step.status == "pending" and step.attempts > 0 and failure is not None:
-            # Attempted when the session failed (e.g. read-back error): never report "skipped".
-            step.status = "failed"
-            step.error_category = failure.category
-            step.error_message = failure.message
-        elif step.status == "pending":
-            step.status = "skipped"
-        if step.status == "failed" and (saved or blocked):
-            step.evidence = {**step.evidence, "artifacts": saved, "blocked_requests": blocked}
+    while True:
+        # Record the attempt *before* the side effect: after a crash, a resumed step knows a
+        # write may have happened and checks the CMS instead of blindly writing again.
+        step.attempts += 1
+        step.started_at = step.started_at or utcnow()
+        db.commit()
+        try:
+            outcome = _apply(writer, action)
+        except ConnectorError as exc:
+            if exc.category not in RETRY_AFTER_READBACK:
+                _fail_step(db, step, exc)
+                return
+            heartbeat()
+            config = reader.read_configuration()  # unknown outcome: look before leaping
+            if action_state(action, config) == "done":
+                step.status = "applied"
+                step.evidence = {"resolved_by_read_back": True, "first_error": exc.category}
+                break
+            if step.attempts >= MAX_WRITE_ATTEMPTS:
+                _fail_step(db, step, exc)
+                return
+            continue
+        _maybe_crash_after_write(run, step)
+        step.status = "applied"
+        step.evidence = outcome.evidence | {"changed": outcome.changed}
+        break
+    step.finished_at = utcnow()
     db.commit()
 
-    # Read-after-write verification decides the outcome, even after a failure (to report state).
+
+def _fail_step(db: Session, step: ActionStep, error: ConnectorError) -> None:
+    step.status = "failed"
+    step.error_category = error.category
+    step.error_message = error.message
+    step.evidence = {**step.evidence, "details": error.details}
+    step.finished_at = utcnow()
+    db.commit()
+
+
+def _skip_pending(db: Session, run: OnboardingRun) -> None:
+    for step in db.scalars(
+        select(ActionStep).where(ActionStep.run_id == run.id, ActionStep.status == "pending")
+    ):
+        step.status = "skipped"
+
+
+def finalize(db: Session, run_id: int, reader_factory: ReaderFactory) -> str:
+    """Read back, verify, decide the run outcome. Atomic: results and status commit together."""
+    run = _load_run(db, run_id)
+    if run.status != "running":
+        return run.status
+    _skip_pending(db, run)
+    steps = list(db.scalars(select(ActionStep).where(ActionStep.run_id == run.id)))
+    failed = next(
+        (s for s in sorted(steps, key=lambda s: s.sequence) if s.status == "failed"), None
+    )
+    project = _project(db, run)
     try:
-        final = reader.read_configuration()
+        final = reader_factory(project.connector).read_configuration()
     except ConnectorError as exc:
         _finish(
-            db,
-            user,
-            project,
-            run,
-            "failed",
-            exc.category,
-            f"Could not read back configuration: {exc.message}",
+            db, run, "failed", exc.category, f"Could not read back configuration: {exc.message}"
         )
-        return
+        return run.status
     run.config_revision_after = final.config_revision
-    for check in verify(plan, final):
+    checks = verify(list(_plan(db, run).values()), final)
+    for check in checks:
         db.add(
             VerificationResult(
                 firm_id=run.firm_id,
@@ -286,93 +441,52 @@ def _execute(
                 reason=check.reason,
             )
         )
-    db.flush()
-    if failure is not None:
-        _finish(db, user, project, run, "failed", failure.category, failure.message)
-    elif any(
-        r.status != "match"
-        for r in db.scalars(select(VerificationResult).where(VerificationResult.run_id == run.id))
-    ):
+    if failed is not None:
+        _finish(db, run, "failed", failed.error_category, failed.error_message)
+    elif any(c.status != "match" for c in checks):
         _finish(
             db,
-            user,
-            project,
             run,
             "verification_failed",
             "verification",
             "The stored configuration differs from the approved plan.",
         )
     else:
-        _finish(db, user, project, run, "succeeded", None, None)
+        _finish(db, run, "succeeded", None, None)
+    return run.status
 
 
-def _run_step(
-    db: Session,
-    step: ActionStep,
-    action: PlannedAction,
-    writer: ConfigurationWriter,
-    reader: ConfigurationReader,
-    config: CMSConfiguration,
-) -> tuple[ConnectorError | None, CMSConfiguration]:
-    with tracer.start_as_current_span(
-        "action_step",
-        attributes={"step.sequence": step.sequence, "step.action": step.action_type},
-    ):
-        step.started_at = utcnow()
-        state = action_state(action, config)
-        if state == "done":
-            step.status = "already_applied"
-            step.evidence = {"reason": "state already matched before writing"}
-            step.finished_at = utcnow()
-            db.commit()
-            return None, config
-        if state == "conflict":
-            failure = ConnectorError(
-                "conflict", "The CMS holds a different value that this plan may not overwrite."
-            )
-            _fail_step(db, step, failure)
-            return failure, config
-
-        while True:
-            step.attempts += 1
-            try:
-                outcome = _apply(writer, action)
-            except ConnectorError as exc:
-                if exc.category not in RETRY_AFTER_READBACK:
-                    _fail_step(db, step, exc)
-                    return exc, config
-                # Unknown outcome: look before leaping.
-                config = reader.read_configuration()
-                if action_state(action, config) == "done":
-                    step.status = "applied"
-                    step.evidence = {"resolved_by_read_back": True, "first_error": exc.category}
-                    break
-                if step.attempts >= MAX_WRITE_ATTEMPTS:
-                    _fail_step(db, step, exc)
-                    return exc, config
-                continue
-            step.status = "applied"
-            step.evidence = outcome.evidence | {"changed": outcome.changed}
-            config = reader.read_configuration()
-            break
-        step.finished_at = utcnow()
-        db.commit()
-        return None, config
+def fail_run(db: Session, run_id: int, category: str, message: str) -> str:
+    """Last resort when orchestration gives up: never leave a run "running" forever."""
+    run = _load_run(db, run_id)
+    if run.status == "running":
+        _skip_pending(db, run)
+        _finish(db, run, "failed", category, message)
+    return run.status
 
 
-def _fail_step(db: Session, step: ActionStep, error: ConnectorError) -> None:
-    step.status = "failed"
-    step.error_category = error.category
-    step.error_message = error.message
-    step.evidence = {**step.evidence, "details": error.details}
-    step.finished_at = utcnow()
-    db.commit()
+def run_inline(
+    db: Session, run_id: int, reader_factory: ReaderFactory, writer_factory: WriterFactory
+) -> str:
+    """Execute all stages in this process (tests, and environments without Temporal)."""
+    with tracer.start_as_current_span("execute_run", attributes={"onboarding.run_id": run_id}):
+        try:
+            if preflight(db, run_id, reader_factory):
+                for sequence in pending_steps(db, run_id):
+                    if (
+                        execute_step(db, run_id, sequence, reader_factory, writer_factory)
+                        == "failed"
+                    ):
+                        break
+            return finalize(db, run_id, reader_factory)
+        except Exception:
+            log.exception("Run %s crashed", run_id)
+            db.rollback()
+            return fail_run(db, run_id, "internal", "Unexpected executor error.")
 
 
 def _finish(
     db: Session,
-    user: User,
-    project: OnboardingProject,
     run: OnboardingRun,
     status: str,
     error_category: str | None,
@@ -382,15 +496,16 @@ def _finish(
     run.error_category = error_category
     run.error_message = error_message
     run.finished_at = utcnow()
-    steps = list(db.scalars(select(ActionStep).where(ActionStep.run_id == run.id)))
+    db.flush()
     counts: dict[str, int] = {}
-    for s in steps:
+    for s in db.scalars(select(ActionStep).where(ActionStep.run_id == run.id)):
         counts[s.status] = counts.get(s.status, 0) + 1
+    actor = db.get(User, run.created_by_id)
     audit.record(
         db,
-        firm_id=project.firm_id,
-        project_id=project.id,
-        actor=user,
+        firm_id=run.firm_id,
+        project_id=run.project_id,
+        actor=actor,
         action=f"run.{status}",
         entity_type="onboarding_run",
         entity_id=run.id,

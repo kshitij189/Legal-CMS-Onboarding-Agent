@@ -212,14 +212,17 @@ cd backend; py -3.13 -m venv .venv; .\.venv\Scripts\python -m pip install -e ".[
 .\.venv\Scripts\python -m pytest                    # all tests; live_cms tests need mock CMS on :8100
 .\.venv\Scripts\python -m pytest -m "not live_cms"  # without the running mock CMS
 .\.venv\Scripts\python -m playwright install chromium  # once, for browser execution and e2e tests
-.\.venv\Scripts\python -m pytest tests/e2e            # browser end-to-end (needs mock-cms/.venv)
+.\.venv\Scripts\python -m pytest tests/e2e            # browser + durable-run e2e (needs mock-cms/.venv;
+                                                     # durable tests need Temporal on :7234)
+.\.venv\Scripts\python -m app.workflows.worker        # local worker (ONBOARDING_ORCHESTRATOR=temporal)
 .\.venv\Scripts\python -m ruff check . ; .\.venv\Scripts\python -m mypy app tests
 ```
 
 Whole stack in containers (backend migrates on start; seed once; connectors use `http://mock-cms:8100`):
 
 ```powershell
-docker compose up -d --build                         # postgres, mock-cms (:8100), backend (:8200)
+docker compose up -d --build                         # postgres, mock-cms (:8100), backend (:8200),
+                                                     # temporal (:7234, UI :8234), worker
 docker compose exec mock-cms python -m app.seed ; docker compose exec backend python -m app.seed
 # Optional tracing UI (http://localhost:16686):
 $env:OTEL_TRACES_EXPORTER="otlp"; docker compose --profile observability up -d jaeger backend
@@ -243,7 +246,8 @@ Mock CMS demo logins (synthetic): `<a|b|c>.<admin|integration|intake|staff>` wit
 
 Ports in use on this machine by an unrelated project (`legal_intake_agent`): 5433 (Postgres),
 7233/8233 (Temporal), 7880–7882 (LiveKit). Do not bind those; this project uses 5434 (Postgres),
-8100 (mock CMS), 8200 (backend), 16686/4318 (Jaeger, opt-in profile).
+8100 (mock CMS), 8200 (backend), 7234/8234 (Temporal gRPC / UI), 16686/4318 (Jaeger, opt-in
+profile).
 
 Keep this section current as phases add commands.
 
@@ -341,6 +345,26 @@ Keep this section current as phases add commands.
   on failure to `artifacts/`; no remote-debugging endpoints exposed.
 
 ## 11. Reliability: errors, retries, idempotency, recovery
+
+### As implemented (Phase 5)
+- `POST /execute` creates the run and its full plan, then starts a Temporal workflow
+  (`app/workflows/onboarding_run.py`) with the run's random `workflow_id` and returns **202**;
+  clients poll `GET /runs/{id}`. `ONBOARDING_ORCHESTRATOR=inline` runs the same stages in-process
+  (tests). Worker: `python -m app.workflows.worker` (Compose service `worker`).
+- Workflow = activities over the stages in `domain/execution_service.py`: `preflight` →
+  `execute_step` per step (heartbeats; retried on another worker after a crash) → `finalize`;
+  if retries are exhausted, `fail_run` records the failure. Stages reload state by run id and
+  are safe to repeat: the attempt is committed *before* each write, every step re-reads the CMS
+  first, so a step interrupted after its write is recorded as applied (`after_interruption`)
+  instead of being written again.
+- Duplicate protection: Idempotency-Key per project, one running run per project, workflow id
+  reuse policy `ALLOW_DUPLICATE_FAILED_ONLY` (a second start is rejected), read-before-write.
+- Recovery: on start-up the worker re-submits runs still `running` (e.g. API crashed before
+  starting the workflow); existing workflows are left alone.
+- Fault injection for tests only: `ONBOARDING_FAULT_CRASH_AFTER_WRITE=<step subject>` makes a
+  worker exit right after that write (once per step). Never set it outside tests.
+- Every new runtime import must be declared in `backend/pyproject.toml` — the container build is
+  the check (a missing `temporalio` declaration passed local tests and failed in Docker).
 
 - Classify failures: `validation` (permanent), `authorization` (permanent), `ui_drift` (permanent,
   needs human), `transient` (retryable), `uncertain` (outcome unknown).

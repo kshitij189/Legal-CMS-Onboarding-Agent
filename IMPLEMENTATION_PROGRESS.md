@@ -6,8 +6,8 @@ A phase is `COMPLETED` only when its acceptance criteria are met and the evidenc
 **Repository inspection (2026-10-12):** the repository was empty — no source code, tests, or
 configuration existed. No phase has verifiable prior work.
 
-**Last completed phase:** Phase 4 — Playwright execution (2026-10-13).
-**Next phase to implement:** Phase 5 — Durable orchestration with Temporal (awaiting user authorization).
+**Last completed phase:** Phase 5 — Durable orchestration (2026-10-13).
+**Next phase to implement:** Phase 6 — Evaluation + dashboard (awaiting user authorization).
 
 | # | Phase | Status |
 |---|---|---|
@@ -15,7 +15,7 @@ configuration existed. No phase has verifiable prior work.
 | 2 | Schema normalization | COMPLETED |
 | 3 | LLM mapping proposals | COMPLETED |
 | 4 | Playwright execution | COMPLETED |
-| 5 | Durable orchestration (Temporal) | NOT_STARTED |
+| 5 | Durable orchestration (Temporal) | COMPLETED |
 | 6 | Evaluation + dashboard | NOT_STARTED |
 | 7 | Hardening + demonstration | NOT_STARTED |
 
@@ -293,14 +293,60 @@ Known limitations
 - Browser channel is slower (~10–30 s per run) than the API channel; both verify via the API.
 
 ## Phase 5 — Durable orchestration
-**Status:** NOT_STARTED
-**Objective:** Temporal workflows for onboarding runs, approvals, retries and recovery.
-**Depends on:** Phase 4.
+**Status:** COMPLETED (2026-10-13)
+**Objective:** Temporal workflows for onboarding runs, retries and recovery.
+**Depends on:** Phase 4 — satisfied.
 
-Tasks / deliverables: Temporal in Compose; workflow + activities; approval signal; bounded retries;
-uncertain-outcome read-before-retry.
-Acceptance criteria: interrupted work resumes without repeating completed side effects.
-Required evidence: test killing a worker mid-run and resuming; duplicate-execution test.
+Tasks / deliverables
+- [x] Temporal in Compose on its own ports (D4): `temporalio/temporal:1.9.1` dev server, gRPC
+      127.0.0.1:7234, UI 127.0.0.1:8234, SQLite in volume `temporal-data`, non-root
+- [x] Worker service (`python -m app.workflows.worker`, Compose `worker`) with start-up recovery
+- [x] Workflow `OnboardingRunWorkflow` + activities (preflight, pending steps, per-step execute
+      with heartbeats, finalize, fail_run); bounded retry policy (5 attempts, backoff)
+- [x] Execution service split into resumable stages; attempt recorded before each write;
+      interrupted-after-write steps resolved by read-back (`after_interruption`)
+- [x] `POST /execute` returns 202 and runs in the background; `workflow_id` per run (migration
+      `0005`, unique); orchestrator unreachable → run marked failed + 503 (never left locked)
+- [x] Uncertain-outcome read-before-retry (Phase 4) preserved inside the activity
+- [ ] Approval signal — **not built, by decision**: approvals are durable database records bound
+      to immutable versions, and a workflow is only started from an approved version, so a signal
+      would duplicate the gate without adding safety.
+
+Acceptance criteria — met
+- [x] Interrupted work resumes from persisted state without repeating completed side effects.
+
+Validation evidence (2026-10-13)
+- Worker killed right after a write (real process, fault injection after creating
+  `matter.custom.review_status`, browser channel): worker exits 70; step left `pending` with
+  1 recorded attempt while the field exists in the CMS; a new worker resumes after the missed
+  heartbeat; step `applied` with `after_interruption`, still 1 attempt; run `succeeded`, 9/9
+  verified, CMS revision exactly 9.
+- Mutation: disabling read-before-write makes the resumed worker create the field again → CMS
+  rejects → test fails. Restored → passes.
+- Duplicate execution: same Idempotency-Key → same run; second workflow start for the same run
+  rejected (running and after completion); new run of the same version → 8 `already_applied`,
+  CMS revision unchanged.
+- Recovery: run saved without a workflow (simulated API crash) is started by worker start-up and
+  succeeds.
+- Background run: 202 → `succeeded`; Temporal reports the workflow COMPLETED.
+- Full-stack containers (`docs/evidence/phase5-worker-kill-run.json`): Firm B, proposals by Groq,
+  9 approved items (10 steps, browser channel); worker **container** killed after 2 steps, run
+  stayed `running` (2 applied / 8 pending); worker restarted; run `succeeded`, 10/10 verified,
+  every step 1 attempt, CMS revision 0 → 10 (independent read).
+- `backend: pytest` — **176 passed**, 1 deselected (live LLM). ruff, `mypy --strict` (87 files),
+  migrations up/down: clean. `mock-cms: pytest` — 76 passed.
+
+Bugs found and fixed during the phase
+- `temporalio` was installed locally but missing from `pyproject.toml`; containers crashed on
+  import. Declared; noted in CLAUDE.md that the container build is the check.
+- Temporal volume was root-owned and the image runs as `temporal`; mounted at the user's home
+  instead of running as root.
+- Unnamed unique constraint made migration `0005` irreversible; named it (dev DB repaired).
+
+Known limitations (deferred by the user to after Phase 5, unless noted)
+- Plans cover mappings and custom fields only (no required-field changes).
+- Temporal dev server (SQLite) is for local use; production would need a clustered Temporal.
+- A crash that kills the *Temporal server* itself relies on its SQLite persistence (not tested).
 
 ## Phase 6 — Evaluation + dashboard
 **Status:** NOT_STARTED
@@ -335,7 +381,7 @@ Required evidence: demo script/recording; CI green.
   `https://github.com/kshitij189/Legal-CMS-Onboarding-Agent.git`. Commit and push after every phase.
   Sole author/contributor is `kshitij189`; no Claude co-author or attribution trailers.
 - **D4 Temporal — RESOLVED:** run our own Temporal in this project's Compose on separate host ports
-  (not 7233/8233, which another project uses). Port numbers chosen in Phase 5.
+  (not 7233/8233, which another project uses). Implemented on 7234 (gRPC) / 8234 (UI).
 
 - **D5 Reviewer authentication — RESOLVED (2026-10-13):** firm-scoped `users` with roles
   `firm_admin` / `integration_specialist`, hashed bearer tokens, no SSO. Implemented.
@@ -348,5 +394,6 @@ None.
 None for completed work. Phase 3 live-LLM evidence depends on D6.
 
 ## Next steps
-1. User to authorize Phase 5 — durable orchestration (Temporal on its own ports per D4):
-   resumable runs, recovery of interrupted runs, retries without repeated side effects.
+1. User to authorize Phase 6 — evaluation suite (30–50 labelled scenarios, one command) and the
+   Next.js dashboard.
+2. Revisit the limitations the user deferred: required-field changes in approved plans.

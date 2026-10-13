@@ -469,6 +469,7 @@ class OnboardingRun(Base):
     __table_args__ = (
         UniqueConstraint("firm_id", "id", name="uq_onboarding_runs_firm_id_id"),
         UniqueConstraint("project_id", "idempotency_key", name="uq_onboarding_runs_idem"),
+        UniqueConstraint("workflow_id", name="uq_onboarding_runs_workflow_id"),
         CheckConstraint(_in_values("status", RUN_STATUSES), name="ck_onboarding_runs_status"),
         CheckConstraint("channel IN ('api', 'browser')", name="ck_onboarding_runs_channel"),
         # At most one run per project may be active, so two runs never write concurrently.
@@ -501,6 +502,9 @@ class OnboardingRun(Base):
     channel: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(32))
     idempotency_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Durable-orchestration id (Temporal workflow id). Random, so a database reset can never
+    # collide with a workflow left over in Temporal. Null only for rows from before Phase 5.
+    workflow_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     drift_issues: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
     config_revision_before: Mapped[int | None] = mapped_column(Integer, nullable=True)
     config_revision_after: Mapped[int | None] = mapped_column(Integer, nullable=True)

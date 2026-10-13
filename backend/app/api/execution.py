@@ -4,6 +4,7 @@ The only input that can cause CMS writes is an approved mapping version id; ther
 that accepts arbitrary actions or browser instructions.
 """
 
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any, Literal
 
@@ -12,12 +13,15 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from app.api.deps import require
+from app.config import get_settings
 from app.db.session import get_db
 from app.domain import execution_service, project_service
 from app.domain.execution_service import ReaderFactory, WriterFactory
+from app.errors import OrchestratorUnavailable
 from app.integrations.registry import build_reader, build_writer
 from app.models import OnboardingRun, User
 from app.permissions import Permission
+from app.workflows.client import start_run_workflow
 
 router = APIRouter(prefix="/api/v1/onboarding-projects/{project_id}", tags=["execution"])
 
@@ -61,6 +65,7 @@ class CheckOut(BaseModel):
 class RunOut(BaseModel):
     id: int
     created: bool
+    workflow_id: str | None
     mapping_version_id: int
     channel: str
     status: str
@@ -88,6 +93,7 @@ def run_out(run: OnboardingRun, created: bool) -> RunOut:
     return RunOut(
         id=run.id,
         created=created,
+        workflow_id=run.workflow_id,
         mapping_version_id=run.mapping_version_id,
         channel=run.channel,
         status=run.status,
@@ -129,6 +135,34 @@ def run_out(run: OnboardingRun, created: bool) -> RunOut:
     )
 
 
+def get_run_dispatcher(
+    reader_factory: ReaderFactory = Depends(get_reader_factory),
+    writer_factory: WriterFactory = Depends(get_writer_factory),
+) -> Callable[[Session, OnboardingRun], None]:
+    """How a created run gets executed: a durable Temporal workflow, or inline in this process."""
+    if get_settings().orchestrator == "inline":
+
+        def inline(db: Session, run: OnboardingRun) -> None:
+            execution_service.run_inline(db, run.id, reader_factory, writer_factory)
+
+        return inline
+
+    def temporal(db: Session, run: OnboardingRun) -> None:
+        assert run.workflow_id is not None  # noqa: S101 - set at creation
+        try:
+            start_run_workflow(run.id, run.workflow_id)
+        except Exception as exc:  # orchestrator unreachable: do not leave the project locked
+            execution_service.fail_run(
+                db, run.id, "orchestrator_unavailable", f"Could not start the run: {exc}"[:500]
+            )
+            raise OrchestratorUnavailable(
+                "The run could not be started; nothing was written to the CMS.",
+                [{"code": "orchestrator_unavailable", "run_id": run.id}],
+            ) from None
+
+    return temporal
+
+
 @router.post("/execute", response_model=RunOut)
 def execute(
     project_id: int,
@@ -137,22 +171,21 @@ def execute(
     idempotency_key: str | None = Header(default=None, max_length=100),
     user: User = Depends(require(Permission.RUNS_EXECUTE)),
     db: Session = Depends(get_db),
-    reader_factory: ReaderFactory = Depends(get_reader_factory),
-    writer_factory: WriterFactory = Depends(get_writer_factory),
+    dispatch: Callable[[Session, OnboardingRun], None] = Depends(get_run_dispatcher),
 ) -> RunOut:
+    """Create the run and hand it to the orchestrator. With Temporal this returns 202 while the run
+    proceeds in the background; poll `GET /runs/{id}`. A repeated Idempotency-Key returns 200."""
     project = project_service.get_project(db, user, project_id)
-    run, created = execution_service.start_run(
-        db,
-        user,
-        project,
-        body.mapping_version_id,
-        body.channel,
-        idempotency_key,
-        reader_factory,
-        writer_factory,
+    run, created = execution_service.create_run(
+        db, user, project, body.mapping_version_id, body.channel, idempotency_key
     )
-    response.status_code = 201 if created else 200
-    return run_out(run, created)
+    if not created:
+        response.status_code = 200
+        return run_out(run, False)
+    dispatch(db, run)
+    db.refresh(run)
+    response.status_code = 202 if run.status == "running" else 201
+    return run_out(run, True)
 
 
 @router.get("/runs", response_model=list[RunOut])

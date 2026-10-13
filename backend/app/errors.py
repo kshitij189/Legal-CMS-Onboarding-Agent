@@ -54,6 +54,10 @@ class ConnectorError(AppError):
         self.category = category  # authorization | transient | contract | configuration
 
 
+class OrchestratorUnavailable(AppError):
+    status_code, code = 503, "orchestrator_unavailable"
+
+
 class LLMUnavailable(AppError):
     """No configured LLM provider produced a valid proposal."""
 
