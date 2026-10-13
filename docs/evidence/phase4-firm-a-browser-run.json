@@ -1,0 +1,395 @@
+{
+  "id": 1,
+  "created": true,
+  "mapping_version_id": 1,
+  "channel": "browser",
+  "status": "succeeded",
+  "error_category": null,
+  "error_message": null,
+  "drift_issues": [],
+  "config_revision_before": 0,
+  "config_revision_after": 8,
+  "artifact_dir": null,
+  "created_by": "firm-a.specialist",
+  "started_at": "2026-10-13T09:00:22.511364Z",
+  "finished_at": "2026-10-13T09:00:33.504501Z",
+  "summary": {
+    "steps": {
+      "applied": 8
+    },
+    "verification": {
+      "match": 8
+    }
+  },
+  "steps": [
+    {
+      "sequence": 1,
+      "action_type": "upsert_intake_mapping",
+      "subject": "callback_time",
+      "status": "applied",
+      "attempts": 1,
+      "error_category": null,
+      "error_message": null,
+      "evidence": {
+        "notice": "Saved. Configuration revision 1.",
+        "changed": true,
+        "channel": "browser"
+      },
+      "payload": {
+        "mapping": {
+          "value_map": null,
+          "source_key": "callback_time",
+          "target_field": "contact.callback_preference",
+          "transformation": "none"
+        },
+        "subject": "callback_time",
+        "sequence": 1,
+        "action_type": "upsert_intake_mapping",
+        "custom_field": null
+      }
+    },
+    {
+      "sequence": 2,
+      "action_type": "upsert_intake_mapping",
+      "subject": "client_email",
+      "status": "applied",
+      "attempts": 1,
+      "error_category": null,
+      "error_message": null,
+      "evidence": {
+        "notice": "Saved. Configuration revision 2.",
+        "changed": true,
+        "channel": "browser"
+      },
+      "payload": {
+        "mapping": {
+          "value_map": null,
+          "source_key": "client_email",
+          "target_field": "contact.email",
+          "transformation": "lowercase"
+        },
+        "subject": "client_email",
+        "sequence": 2,
+        "action_type": "upsert_intake_mapping",
+        "custom_field": null
+      }
+    },
+    {
+      "sequence": 3,
+      "action_type": "upsert_intake_mapping",
+      "subject": "client_full_name",
+      "status": "applied",
+      "attempts": 1,
+      "error_category": null,
+      "error_message": null,
+      "evidence": {
+        "notice": "Saved. Configuration revision 3.",
+        "changed": true,
+        "channel": "browser"
+      },
+      "payload": {
+        "mapping": {
+          "value_map": null,
+          "source_key": "client_full_name",
+          "target_field": "contact.full_name",
+          "transformation": "trim"
+        },
+        "subject": "client_full_name",
+        "sequence": 3,
+        "action_type": "upsert_intake_mapping",
+        "custom_field": null
+      }
+    },
+    {
+      "sequence": 4,
+      "action_type": "upsert_intake_mapping",
+      "subject": "client_mobile",
+      "status": "applied",
+      "attempts": 1,
+      "error_category": null,
+      "error_message": null,
+      "evidence": {
+        "notice": "Saved. Configuration revision 4.",
+        "changed": true,
+        "channel": "browser"
+      },
+      "payload": {
+        "mapping": {
+          "value_map": null,
+          "source_key": "client_mobile",
+          "target_field": "contact.phone_number",
+          "transformation": "normalize_phone"
+        },
+        "subject": "client_mobile",
+        "sequence": 4,
+        "action_type": "upsert_intake_mapping",
+        "custom_field": null
+      }
+    },
+    {
+      "sequence": 5,
+      "action_type": "upsert_intake_mapping",
+      "subject": "jurisdiction",
+      "status": "applied",
+      "attempts": 1,
+      "error_category": null,
+      "error_message": null,
+      "evidence": {
+        "notice": "Saved. Configuration revision 5.",
+        "changed": true,
+        "channel": "browser"
+      },
+      "payload": {
+        "mapping": {
+          "value_map": null,
+          "source_key": "jurisdiction",
+          "target_field": "matter.jurisdiction",
+          "transformation": "trim"
+        },
+        "subject": "jurisdiction",
+        "sequence": 5,
+        "action_type": "upsert_intake_mapping",
+        "custom_field": null
+      }
+    },
+    {
+      "sequence": 6,
+      "action_type": "upsert_intake_mapping",
+      "subject": "matter_details",
+      "status": "applied",
+      "attempts": 1,
+      "error_category": null,
+      "error_message": null,
+      "evidence": {
+        "notice": "Saved. Configuration revision 6.",
+        "changed": true,
+        "channel": "browser"
+      },
+      "payload": {
+        "mapping": {
+          "value_map": null,
+          "source_key": "matter_details",
+          "target_field": "matter.summary",
+          "transformation": "none"
+        },
+        "subject": "matter_details",
+        "sequence": 6,
+        "action_type": "upsert_intake_mapping",
+        "custom_field": null
+      }
+    },
+    {
+      "sequence": 7,
+      "action_type": "upsert_intake_mapping",
+      "subject": "matter_type",
+      "status": "applied",
+      "attempts": 1,
+      "error_category": null,
+      "error_message": null,
+      "evidence": {
+        "notice": "Saved. Configuration revision 7.",
+        "changed": true,
+        "channel": "browser"
+      },
+      "payload": {
+        "mapping": {
+          "value_map": {
+            "Family": "family_law",
+            "Employment": "employment",
+            "Immigration": "immigration",
+            "Personal Injury": "personal_injury"
+          },
+          "source_key": "matter_type",
+          "target_field": "matter.practice_area",
+          "transformation": "none"
+        },
+        "subject": "matter_type",
+        "sequence": 7,
+        "action_type": "upsert_intake_mapping",
+        "custom_field": null
+      }
+    },
+    {
+      "sequence": 8,
+      "action_type": "upsert_intake_mapping",
+      "subject": "opposing_party",
+      "status": "applied",
+      "attempts": 1,
+      "error_category": null,
+      "error_message": null,
+      "evidence": {
+        "notice": "Saved. Configuration revision 8.",
+        "changed": true,
+        "channel": "browser"
+      },
+      "payload": {
+        "mapping": {
+          "value_map": null,
+          "source_key": "opposing_party",
+          "target_field": "matter.opposing_party",
+          "transformation": "trim"
+        },
+        "subject": "opposing_party",
+        "sequence": 8,
+        "action_type": "upsert_intake_mapping",
+        "custom_field": null
+      }
+    }
+  ],
+  "verification": [
+    {
+      "subject": "callback_time",
+      "check_type": "mapping",
+      "status": "match",
+      "reason": "stored as approved",
+      "expected": {
+        "value_map": null,
+        "source_key": "callback_time",
+        "target_field": "contact.callback_preference",
+        "transformation": "none"
+      },
+      "actual": {
+        "value_map": null,
+        "source_key": "callback_time",
+        "target_field": "contact.callback_preference",
+        "transformation": "none"
+      }
+    },
+    {
+      "subject": "client_email",
+      "check_type": "mapping",
+      "status": "match",
+      "reason": "stored as approved",
+      "expected": {
+        "value_map": null,
+        "source_key": "client_email",
+        "target_field": "contact.email",
+        "transformation": "lowercase"
+      },
+      "actual": {
+        "value_map": null,
+        "source_key": "client_email",
+        "target_field": "contact.email",
+        "transformation": "lowercase"
+      }
+    },
+    {
+      "subject": "client_full_name",
+      "check_type": "mapping",
+      "status": "match",
+      "reason": "stored as approved",
+      "expected": {
+        "value_map": null,
+        "source_key": "client_full_name",
+        "target_field": "contact.full_name",
+        "transformation": "trim"
+      },
+      "actual": {
+        "value_map": null,
+        "source_key": "client_full_name",
+        "target_field": "contact.full_name",
+        "transformation": "trim"
+      }
+    },
+    {
+      "subject": "client_mobile",
+      "check_type": "mapping",
+      "status": "match",
+      "reason": "stored as approved",
+      "expected": {
+        "value_map": null,
+        "source_key": "client_mobile",
+        "target_field": "contact.phone_number",
+        "transformation": "normalize_phone"
+      },
+      "actual": {
+        "value_map": null,
+        "source_key": "client_mobile",
+        "target_field": "contact.phone_number",
+        "transformation": "normalize_phone"
+      }
+    },
+    {
+      "subject": "jurisdiction",
+      "check_type": "mapping",
+      "status": "match",
+      "reason": "stored as approved",
+      "expected": {
+        "value_map": null,
+        "source_key": "jurisdiction",
+        "target_field": "matter.jurisdiction",
+        "transformation": "trim"
+      },
+      "actual": {
+        "value_map": null,
+        "source_key": "jurisdiction",
+        "target_field": "matter.jurisdiction",
+        "transformation": "trim"
+      }
+    },
+    {
+      "subject": "matter_details",
+      "check_type": "mapping",
+      "status": "match",
+      "reason": "stored as approved",
+      "expected": {
+        "value_map": null,
+        "source_key": "matter_details",
+        "target_field": "matter.summary",
+        "transformation": "none"
+      },
+      "actual": {
+        "value_map": null,
+        "source_key": "matter_details",
+        "target_field": "matter.summary",
+        "transformation": "none"
+      }
+    },
+    {
+      "subject": "matter_type",
+      "check_type": "mapping",
+      "status": "match",
+      "reason": "stored as approved",
+      "expected": {
+        "value_map": {
+          "Family": "family_law",
+          "Employment": "employment",
+          "Immigration": "immigration",
+          "Personal Injury": "personal_injury"
+        },
+        "source_key": "matter_type",
+        "target_field": "matter.practice_area",
+        "transformation": "none"
+      },
+      "actual": {
+        "value_map": {
+          "Family": "family_law",
+          "Employment": "employment",
+          "Immigration": "immigration",
+          "Personal Injury": "personal_injury"
+        },
+        "source_key": "matter_type",
+        "target_field": "matter.practice_area",
+        "transformation": "none"
+      }
+    },
+    {
+      "subject": "opposing_party",
+      "check_type": "mapping",
+      "status": "match",
+      "reason": "stored as approved",
+      "expected": {
+        "value_map": null,
+        "source_key": "opposing_party",
+        "target_field": "matter.opposing_party",
+        "transformation": "trim"
+      },
+      "actual": {
+        "value_map": null,
+        "source_key": "opposing_party",
+        "target_field": "matter.opposing_party",
+        "transformation": "trim"
+      }
+    }
+  ]
+}

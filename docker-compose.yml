@@ -21,6 +21,8 @@ services:
     environment:
       MOCK_CMS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-lcms}:${POSTGRES_PASSWORD:-lcms_dev_password}@postgres:5432/mock_cms
       MOCK_CMS_SEED_PASSWORD: ${MOCK_CMS_SEED_PASSWORD:-demo-password}
+      # v2 renames some form controls (simulated vendor UI release) to demonstrate drift handling.
+      MOCK_CMS_UI_VARIANT: ${MOCK_CMS_UI_VARIANT:-v1}
     ports:
       - "8100:8100"
     depends_on:

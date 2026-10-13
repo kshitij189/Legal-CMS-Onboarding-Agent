@@ -15,10 +15,12 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -452,3 +454,128 @@ class AuditEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     actor: Mapped[User | None] = relationship(lazy="joined", viewonly=True)
+
+
+# --- Phase 4: execution runs, steps and read-after-write verification ---------------------------
+
+RUN_STATUSES = ("running", "succeeded", "failed", "blocked", "verification_failed")
+STEP_STATUSES = ("pending", "applied", "already_applied", "failed", "skipped")
+
+
+class OnboardingRun(Base):
+    """One execution of an approved mapping version against the firm's CMS."""
+
+    __tablename__ = "onboarding_runs"
+    __table_args__ = (
+        UniqueConstraint("firm_id", "id", name="uq_onboarding_runs_firm_id_id"),
+        UniqueConstraint("project_id", "idempotency_key", name="uq_onboarding_runs_idem"),
+        CheckConstraint(_in_values("status", RUN_STATUSES), name="ck_onboarding_runs_status"),
+        CheckConstraint("channel IN ('api', 'browser')", name="ck_onboarding_runs_channel"),
+        # At most one run per project may be active, so two runs never write concurrently.
+        Index(
+            "uq_onboarding_runs_one_active",
+            "project_id",
+            unique=True,
+            postgresql_where=text("status = 'running'"),
+        ),
+        ForeignKeyConstraint(
+            ["firm_id", "project_id"],
+            ["onboarding_projects.firm_id", "onboarding_projects.id"],
+            name="fk_onboarding_runs_project_same_firm",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["firm_id", "created_by_id"],
+            ["users.firm_id", "users.id"],
+            name="fk_onboarding_runs_creator_same_firm",
+            ondelete="RESTRICT",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    firm_id: Mapped[int] = mapped_column(Integer, index=True)
+    project_id: Mapped[int] = mapped_column(Integer, index=True)
+    mapping_version_id: Mapped[int] = mapped_column(
+        ForeignKey("mapping_versions.id", ondelete="RESTRICT")
+    )
+    channel: Mapped[str] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(32))
+    idempotency_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    drift_issues: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    config_revision_before: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    config_revision_after: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error_category: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Relative to the artifacts dir; holds browser traces/screenshots of failed actions.
+    artifact_dir: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_by_id: Mapped[int] = mapped_column(Integer)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    steps: Mapped[list["ActionStep"]] = relationship(
+        order_by="ActionStep.sequence", lazy="selectin", viewonly=True
+    )
+    verification: Mapped[list["VerificationResult"]] = relationship(
+        order_by="VerificationResult.id", lazy="selectin", viewonly=True
+    )
+    created_by: Mapped[User] = relationship(lazy="joined", viewonly=True)
+
+
+class ActionStep(Base):
+    """A planned and executed action. Payloads are configuration, never client data."""
+
+    __tablename__ = "action_steps"
+    __table_args__ = (
+        UniqueConstraint("run_id", "sequence", name="uq_action_steps_run_sequence"),
+        CheckConstraint(_in_values("status", STEP_STATUSES), name="ck_action_steps_status"),
+        ForeignKeyConstraint(
+            ["firm_id", "run_id"],
+            ["onboarding_runs.firm_id", "onboarding_runs.id"],
+            name="fk_action_steps_run_same_firm",
+            ondelete="CASCADE",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    firm_id: Mapped[int] = mapped_column(Integer)
+    run_id: Mapped[int] = mapped_column(Integer, index=True)
+    sequence: Mapped[int] = mapped_column(Integer)
+    action_type: Mapped[str] = mapped_column(String(32))
+    subject: Mapped[str] = mapped_column(String(200))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    idempotency_key: Mapped[str] = mapped_column(String(100), unique=True)
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    error_category: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    evidence: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class VerificationResult(Base):
+    """Expected vs actual for one planned action, read back from the CMS after execution."""
+
+    __tablename__ = "verification_results"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('match', 'mismatch', 'missing')", name="ck_verification_results_status"
+        ),
+        ForeignKeyConstraint(
+            ["firm_id", "run_id"],
+            ["onboarding_runs.firm_id", "onboarding_runs.id"],
+            name="fk_verification_results_run_same_firm",
+            ondelete="CASCADE",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    firm_id: Mapped[int] = mapped_column(Integer)
+    run_id: Mapped[int] = mapped_column(Integer, index=True)
+    subject: Mapped[str] = mapped_column(String(200))
+    check_type: Mapped[str] = mapped_column(String(32))
+    expected: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    actual: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(16))
+    reason: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

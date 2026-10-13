@@ -2,6 +2,7 @@
 
 import re
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -235,3 +236,23 @@ def test_api_token_cannot_be_used_as_browser_session(client: TestClient) -> None
     ).json()["access_token"]
     client.cookies.set(SESSION_COOKIE, token)
     assert client.get("/config/fields", follow_redirects=False).status_code == 303
+
+
+def test_ui_variant_v2_renames_controls(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.config import get_settings
+
+    _ui_login(client, "a.admin")
+    assert '<label for="source_key">Source field key</label>' in client.get("/config/mappings").text
+    monkeypatch.setenv("MOCK_CMS_UI_VARIANT", "v2")
+    get_settings.cache_clear()
+    try:
+        page = client.get("/config/mappings").text
+        assert '<label for="source_key">External field identifier</label>' in page
+        assert ">Store mapping</button>" in page and "Save mapping" not in page
+        custom = client.get("/config/custom-fields/new").text
+        assert '<label for="name">Internal name</label>' in custom
+    finally:
+        monkeypatch.delenv("MOCK_CMS_UI_VARIANT")
+        get_settings.cache_clear()

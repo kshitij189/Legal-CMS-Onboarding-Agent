@@ -335,3 +335,79 @@ defaults: Groq for all three firms, no fallback, 0 invalid, 26/30 agreement.
 
 **Notes.** The Gemini key belongs to the Google Cloud project "voice-agents", whose quota is shared
 with another application (279 Flash Lite requests that day were not from this project).
+
+
+---
+
+## Phase 4 — Playwright execution
+
+### 2026-10-13 — Execute approved versions via browser or API, verify by read-back (status: COMPLETED)
+
+**Added**
+- `backend/app/integrations/browser_cms.py`: Playwright (sync) adapter — exact label / role+name
+  locators that must match exactly once, origin allow-list on every request, trace + screenshot on
+  failure, outcome read from the CMS's own status/alert notices.
+- `backend/app/integrations/mock_cms.py`: `read_configuration`, `create_custom_field`,
+  `upsert_mapping` over the API; writes are single-attempt and lost responses are `uncertain`.
+- `backend/app/integrations/base.py` / `registry.py`: `ConfigurationReader` /
+  `ConfigurationWriter` protocols, `build_reader`, `build_writer(channel)`.
+- `backend/app/schemas/execution.py`, `backend/app/domain/execution_plan.py` (pure: plan, state,
+  drift, verification), `backend/app/domain/execution_service.py` (runs), `backend/app/api/execution.py`
+  (`POST /execute`, `GET /runs[/{id}]`, `GET /verification`).
+- Migration `0004`: `onboarding_runs` (partial unique index: one running run per project),
+  `action_steps`, `verification_results`; data update giving existing mock CMS connectors the
+  operations `read_configuration`, `write_api`, `write_browser`.
+- Permission `runs:execute` (integration specialist; admin has all). Settings
+  `ONBOARDING_BROWSER_TIMEOUT_MS`, `ONBOARDING_BROWSER_HEADLESS`.
+- Mock CMS: `MOCK_CMS_UI_VARIANT` (`v1` default, `v2` renames four controls) + test.
+- Tests: `tests/unit/test_execution_plan.py`, `tests/integration/test_execution_api.py` (in-memory
+  CMS with fault injection, `tests/execution_helpers.py`), `tests/e2e/test_browser_execution.py`
+  (real mock CMS processes + Chromium). Evidence `docs/evidence/phase4-firm-a-browser-run.json`.
+- Backend image installs Chromium (`playwright install --with-deps chromium`); Compose passes
+  `MOCK_CMS_UI_VARIANT`. New database `mock_cms_e2e` (init script) for isolated browser tests.
+
+**Decisions and rationale**
+- *Plan derived only from the approved version*; the execute endpoint accepts nothing else.
+- *Reads always via the documented API, writes via the run's channel*: verification must not
+  depend on the same UI the writer used.
+- *Read-before-write per step* makes re-runs idempotent (`already_applied`) without trusting
+  client-side bookkeeping; *conflict* (target held by an unmanaged mapping, or a custom field that
+  exists with a different definition) stops the run instead of overwriting.
+- *Uncertain outcomes* (lost response, no UI confirmation, 5xx on a write) are resolved by reading
+  state; at most one retry, only if the change is absent.
+- *Drift pre-flight*: changes to fields the plan targets block the run before any write; other
+  differences and unexpected fields are reported, preserved and untouched.
+- *Stop at first failure*: later steps are `skipped`, never improvised; verification still runs
+  so the report shows the real state.
+- *Browser outcome from the CMS's own notices* (`role=status` / `role=alert`), not from clicks.
+- *E2E harness with its own mock CMS processes and database*: realistic browser tests that never
+  modify demo data; UI v2 on a second port demonstrates drift.
+
+**Dependencies added (backend)**
+`playwright` 1.63.0 (approved stack) + Chromium.
+
+**Tests executed (actual results)**
+- `backend: pytest` — 171 passed, 1 deselected (live LLM), incl. 6 e2e browser tests.
+- `mock-cms: pytest` — 76 passed. ruff + `mypy --strict` (80 files) clean; `alembic check` clean.
+- Mutation check: removing the already-applied skip, the blocking-drift check, and the
+  read-back-before-retry each failed exactly its targeted test; restored → all pass.
+
+**Bugs found and fixed during the phase**
+- e2e tests could not see integration fixtures (added `tests/e2e/conftest.py`).
+- A Phase 2 test asserted the old connector operation list (updated for the new operations).
+- Steps attempted when a session-level error occurred are now `failed`, not `skipped`.
+- Browser login waited for page load after the click (race). It passed locally but failed in the
+  container; the adapter now waits for the navigation the click triggers.
+- Security gap: Playwright does not route redirects, so an allowed page redirecting off-site made
+  the browser contact the outside host (surfaced as a network-dependent flaky e2e test). The guard
+  now fetches allowed requests without following redirects and refuses off-origin targets; the
+  page origin is also checked after every navigation. Covered by an e2e test with a real
+  redirecting server.
+- Backend Dockerfile reordered so the Chromium layer is cached across code changes.
+
+**Known issues / limitations**
+- Runs execute synchronously inside the HTTP request (seconds for the API channel, ~5–30 s for the
+  browser). A crash mid-run leaves the run `running` and blocks new runs for the project until
+  Phase 5 (durable orchestration/recovery) — documented, not yet automated.
+- Firm-level requirement changes (e.g. making a CMS field required) are not part of approved plans
+  yet; only mappings and custom fields are executed.

@@ -6,15 +6,15 @@ A phase is `COMPLETED` only when its acceptance criteria are met and the evidenc
 **Repository inspection (2026-10-12):** the repository was empty — no source code, tests, or
 configuration existed. No phase has verifiable prior work.
 
-**Last completed phase:** Phase 3 — LLM mapping proposals (2026-10-13).
-**Next phase to implement:** Phase 4 — Playwright execution (awaiting user authorization).
+**Last completed phase:** Phase 4 — Playwright execution (2026-10-13).
+**Next phase to implement:** Phase 5 — Durable orchestration with Temporal (awaiting user authorization).
 
 | # | Phase | Status |
 |---|---|---|
 | 1 | Mock CMS | COMPLETED |
 | 2 | Schema normalization | COMPLETED |
 | 3 | LLM mapping proposals | COMPLETED |
-| 4 | Playwright execution | NOT_STARTED |
+| 4 | Playwright execution | COMPLETED |
 | 5 | Durable orchestration (Temporal) | NOT_STARTED |
 | 6 | Evaluation + dashboard | NOT_STARTED |
 | 7 | Hardening + demonstration | NOT_STARTED |
@@ -233,19 +233,64 @@ Known limitations
   opted in).
 
 ## Phase 4 — Playwright execution
-**Status:** NOT_STARTED
+**Status:** COMPLETED (2026-10-13)
 **Objective:** Execute an approved configuration in the mock CMS (API and/or UI) and read it back.
-**Depends on:** Phases 1–3.
+**Depends on:** Phases 1–3 — satisfied.
 
 Tasks / deliverables
-- [ ] `browser_cms.py` adapter with role/label locators, domain allow-list, traces on failure
-- [ ] Execution service: typed, permission-checked, idempotency keys; `onboarding_runs`, `action_steps`
-- [ ] Read-after-write verification service; `verification_results`
-- [ ] Mock CMS UI-variant switch for controlled UI changes (needed for drift tests)
-- [ ] Execute + verification endpoints
+- [x] `integrations/browser_cms.py`: Playwright adapter — exact label / role+name locators that
+      must match exactly once (else `ui_drift`, stop), origin allow-list on every request **and**
+      on redirects (fetched without following; off-origin redirects refused), page-origin check
+      after each navigation, `trace.zip` + `failure.png` on failure only
+- [x] API writer/reader in `integrations/mock_cms.py` (single-attempt writes; lost responses are
+      `uncertain`); `ConfigurationReader` / `ConfigurationWriter` protocols and factories
+- [x] Execution service with typed plan (`domain/execution_plan.py`), permission check
+      (`runs:execute` + connector operations), idempotency keys, one running run per project,
+      drift pre-flight, read-before-write, read-back-before-retry, stop at first failure;
+      tables `onboarding_runs`, `action_steps`, `verification_results` (migration `0004`)
+- [x] Read-after-write verification decides run status (`succeeded` / `verification_failed` /
+      `failed` / `blocked`)
+- [x] Mock CMS UI-variant switch `MOCK_CMS_UI_VARIANT` (v2 renames controls)
+- [x] Endpoints `POST …/execute`, `GET …/runs[/{id}]`, `GET …/verification`
+- [x] Backend image ships Chromium; Compose passes the UI variant
 
-Acceptance criteria: approved plan applied and verified by read-back; missing/renamed element stops safely.
-Required evidence: browser tests vs running mock CMS; verification report for Firm A.
+Acceptance criteria — all met
+- [x] Approved plan applied and verified by read-back: Firm A via the real browser UI — 8 applied,
+      8/8 verified, independently confirmed through the CMS API.
+- [x] Missing/renamed element stops safely: UI v2 — first step `ui_drift` (`control_missing:
+      Source field key`), remaining steps skipped, CMS revision unchanged (0), trace + screenshot.
+
+Validation evidence (2026-10-13)
+- `backend: pytest` — **172 passed**, 1 deselected (live LLM). Includes 7 e2e browser tests
+  against real mock CMS processes (isolated `mock_cms_e2e` DB); e2e set repeated 3× — 7/7 each.
+  `mock-cms: pytest` — 76 passed. ruff, `mypy --strict` (80 files), `alembic check`: clean.
+- Firm A verification report: `docs/evidence/phase4-firm-a-browser-run.json` (browser channel,
+  revisions 0 → 8, all 8 checks `match`). Re-run of the same version: 8 `already_applied`, CMS
+  revision unchanged.
+- Firm C: custom field `matter.custom.review_status` (enum, required) created before the mapping
+  that targets it.
+- Fault injection (in-memory CMS): lost response after success resolved by read-back (written once);
+  lost write retried once; persistent uncertainty fails after 2 attempts; validation not retried;
+  target drift blocks with zero writes; schema change / superseded version → 409; second active
+  run → 409; unauthorized connector operation → 403; cross-firm → 404.
+- Mutation check: disabling the already-applied skip, the blocking-drift check, or the read-back
+  before retry each failed exactly its targeted test; restored → all pass.
+- Container: backend image rebuilt with Chromium (2 GB); migration `0004` at head; inside the
+  container Chromium logged in to `http://mock-cms:8100` (read-only check, demo data untouched) and
+  navigation to `https://example.com/` was refused (`security` / `navigation_blocked`).
+
+Bugs found and fixed during the phase
+- Login waited for page load *after* the click (race); failed in the container, passed locally.
+  Now waits for the navigation the click triggers.
+- Redirects bypassed Playwright request routing, so an allowed page redirecting off-site made the
+  browser contact the outside host (seen as a network-dependent flaky test). The guard now
+  fetches allowed requests without following redirects and refuses off-origin targets.
+
+Known limitations
+- Runs are synchronous inside the HTTP request; a process crash mid-run leaves the run `running`
+  and blocks the project until Phase 5 adds durable orchestration and recovery.
+- Approved plans contain mappings and custom fields only (no field requirement changes yet).
+- Browser channel is slower (~10–30 s per run) than the API channel; both verify via the API.
 
 ## Phase 5 — Durable orchestration
 **Status:** NOT_STARTED
@@ -303,5 +348,5 @@ None.
 None for completed work. Phase 3 live-LLM evidence depends on D6.
 
 ## Next steps
-1. User to authorize Phase 4 — Playwright execution (applies an approved mapping version to
-   the mock CMS, reads it back and verifies).
+1. User to authorize Phase 5 — durable orchestration (Temporal on its own ports per D4):
+   resumable runs, recovery of interrupted runs, retries without repeated side effects.

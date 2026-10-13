@@ -65,7 +65,9 @@ class FirmContext:
     project_id: int
 
 
-def setup_firm(client: TestClient, slug: str = "firm-a") -> FirmContext:
+def setup_firm(
+    client: TestClient, slug: str = "firm-a", base_url: str = "http://localhost:8100"
+) -> FirmContext:
     """Sign up a firm, add a specialist, a mock CMS connector and an onboarding project."""
     signup = client.post(
         "/api/v1/firms",
@@ -93,7 +95,7 @@ def setup_firm(client: TestClient, slug: str = "firm-a") -> FirmContext:
         json={
             "name": "Mock CMS",
             "connector_type": "mock_cms_api",
-            "base_url": "http://localhost:8100",
+            "base_url": base_url,
             "credential_ref": f"{slug}-mock-cms",
         },
     )

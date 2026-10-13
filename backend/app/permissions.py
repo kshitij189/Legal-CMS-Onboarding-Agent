@@ -22,6 +22,7 @@ class Permission(StrEnum):
     MAPPINGS_REVIEW = "mappings:review"
     MAPPINGS_APPROVE = "mappings:approve"
     AUDIT_READ = "audit:read"
+    RUNS_EXECUTE = "runs:execute"
 
 
 ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
@@ -37,6 +38,7 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.MAPPINGS_REVIEW,
             Permission.MAPPINGS_APPROVE,
             Permission.AUDIT_READ,
+            Permission.RUNS_EXECUTE,
         }
     ),
 }

@@ -15,6 +15,13 @@ from pydantic import BaseModel, ValidationError
 from app.errors import ConnectorError
 from app.integrations.base import TargetInspection, ensure_allowed_origin
 from app.integrations.secrets import Credentials
+from app.schemas.execution import (
+    CMSConfiguration,
+    CMSField,
+    CustomFieldSpec,
+    MappingSpec,
+    WriteOutcome,
+)
 from app.schemas.normalized import (
     DataType,
     NormalizedField,
@@ -110,6 +117,117 @@ class MockCMSAdapter:
             normalized=_normalize(vendor), config_revision=vendor.config_revision
         )
 
+    # --- configuration read-back and writes (Phase 4) -------------------------------------------
+
+    channel = "api"
+
+    def __enter__(self) -> "MockCMSAdapter":
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        return None
+
+    def _client(self) -> httpx.Client:
+        return httpx.Client(
+            base_url=self._base_url,
+            timeout=self._timeout,
+            transport=self._transport,
+            follow_redirects=False,
+        )
+
+    def read_configuration(self) -> CMSConfiguration:
+        with self._client() as client:
+            token = self._login(client)
+            response = self._request(
+                client, "GET", "/api/v1/config", headers={"Authorization": f"Bearer {token}"}
+            )
+        try:
+            body = response.json()
+            return CMSConfiguration(
+                config_revision=body["config_revision"],
+                fields=[CMSField.model_validate(f) for f in body["fields"]],
+                mappings=[
+                    MappingSpec(
+                        source_key=m["source_key"],
+                        target_field=m["target_field"],
+                        transformation=m["transformation"],
+                        value_map=m["value_map"] or None,
+                    )
+                    for m in body["intake_mappings"]
+                ],
+            )
+        except (KeyError, TypeError, ValueError, ValidationError) as exc:
+            raise ConnectorError(
+                "contract",
+                "Mock CMS config response did not match the expected contract.",
+                [{"code": "unexpected_response", "message": str(exc)[:300]}],
+            ) from None
+
+    def create_custom_field(self, spec: CustomFieldSpec) -> WriteOutcome:
+        body = {
+            "entity": spec.entity,
+            "name": spec.name,
+            "label": spec.label,
+            "data_type": spec.data_type,
+            "required": spec.required,
+            "options": spec.options,
+        }
+        response = self._write("POST", "/api/v1/config/custom-fields", body)
+        return WriteOutcome(
+            changed=True,
+            evidence={
+                "channel": "api",
+                "status": response.status_code,
+                "config_revision": response.json().get("config_revision"),
+            },
+        )
+
+    def upsert_mapping(self, spec: MappingSpec) -> WriteOutcome:
+        body = {
+            "target_field": spec.target_field,
+            "transformation": spec.transformation,
+            "value_map": spec.value_map,
+        }
+        response = self._write("PUT", f"/api/v1/config/intake-mappings/{spec.source_key}", body)
+        payload = response.json()
+        return WriteOutcome(
+            changed=payload.get("changed"),
+            evidence={
+                "channel": "api",
+                "status": response.status_code,
+                "config_revision": payload.get("config_revision"),
+            },
+        )
+
+    def _write(self, method: str, path: str, body: dict[str, Any]) -> httpx.Response:
+        """Single attempt. A lost response is 'uncertain': the caller must read state before any
+        retry, because the write may have been applied."""
+        with self._client() as client:
+            token = self._login(client)
+            try:
+                response = client.request(
+                    method, path, json=body, headers={"Authorization": f"Bearer {token}"}
+                )
+            except (httpx.TimeoutException, httpx.TransportError) as exc:
+                raise ConnectorError(
+                    "uncertain",
+                    f"No response to the write ({type(exc).__name__}).",
+                    [{"code": "no_response"}],
+                ) from None
+        if response.status_code < 400:
+            return response
+        error = _error_details(response)
+        if response.status_code in (401, 403):
+            raise ConnectorError("authorization", "The CMS refused the write.", error)
+        if response.status_code == 409:
+            raise ConnectorError("conflict", "The CMS reported a conflict.", error)
+        if response.status_code == 422:
+            raise ConnectorError("validation", "The CMS rejected the values.", error)
+        if response.status_code >= 500:
+            # The server may have applied the change before failing: treat as uncertain.
+            raise ConnectorError("uncertain", "The CMS failed while writing.", error)
+        raise ConnectorError("contract", "Unexpected response to a write.", error)
+
     def _login(self, client: httpx.Client) -> str:
         response = self._request(
             client,
@@ -144,6 +262,21 @@ class MockCMSAdapter:
             if attempt < MAX_ATTEMPTS:
                 self._sleep(0.2 * 2 ** (attempt - 1))
         raise failure
+
+
+def _error_details(response: httpx.Response) -> list[dict[str, Any]]:
+    try:
+        error = response.json().get("error", {})
+    except ValueError:
+        return [{"code": f"http_{response.status_code}"}]
+    return [
+        {
+            "code": f"http_{response.status_code}",
+            "cms_code": error.get("code"),
+            "cms_message": error.get("message"),
+            "cms_details": error.get("details", []),
+        }
+    ]
 
 
 def _classify(response: httpx.Response, attempt: int) -> ConnectorError:

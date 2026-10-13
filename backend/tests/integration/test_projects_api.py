@@ -75,7 +75,12 @@ def test_connector_validation(client: TestClient) -> None:
         "/api/v1/connectors", headers=ctx.admin, json={**base, "base_url": "http://localhost:8100/"}
     )
     assert ok.status_code == 201
-    assert ok.json()["supported_operations"] == ["inspect_target"]
+    assert ok.json()["supported_operations"] == [
+        "inspect_target",
+        "read_configuration",
+        "write_api",
+        "write_browser",
+    ]
     assert ok.json()["base_url"] == "http://localhost:8100"
     duplicate = client.post(
         "/api/v1/connectors", headers=ctx.admin, json={**base, "base_url": "http://localhost:8100"}

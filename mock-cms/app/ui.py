@@ -24,6 +24,22 @@ from app.services import auth_service, config_service, intake_service
 
 SESSION_COOKIE = "mockcms_session"
 _VALUE_PREFIX = "v_"
+# Visible text of form controls per UI variant. v2 is a "new release" with renamed controls; the
+# JSON API is unchanged. Unknown variants fall back to v1.
+UI_TEXT: dict[str, dict[str, str]] = {
+    "v1": {
+        "source_key": "Source field key",
+        "save_mapping": "Save mapping",
+        "custom_field_name": "Field name",
+        "create_field": "Create field",
+    },
+    "v2": {
+        "source_key": "External field identifier",
+        "save_mapping": "Store mapping",
+        "custom_field_name": "Internal name",
+        "create_field": "Add field",
+    },
+}
 _NOTICES = {"saved": "Saved.", "unchanged": "No changes were needed.", "deleted": "Deleted."}
 
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
@@ -75,7 +91,13 @@ def _render(
     return templates.TemplateResponse(
         request,
         template,
-        {"session": session, "permissions": permissions, "notice": notice, **context},
+        {
+            "session": session,
+            "permissions": permissions,
+            "notice": notice,
+            "ui": UI_TEXT.get(get_settings().ui_variant, UI_TEXT["v1"]),
+            **context,
+        },
         status_code=status_code,
     )
 

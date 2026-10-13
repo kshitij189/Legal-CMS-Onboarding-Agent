@@ -36,6 +36,8 @@ class Settings:
     token_ttl_minutes: int
     # Self-service firm sign-up (creates a firm and its first firm admin). Disable outside demos.
     allow_signup: bool
+    browser_timeout_ms: int
+    browser_headless: bool
 
 
 @lru_cache
@@ -49,4 +51,6 @@ def get_settings() -> Settings:
         cms_timeout_seconds=float(os.environ.get("ONBOARDING_CMS_TIMEOUT_SECONDS", "10")),
         token_ttl_minutes=int(os.environ.get("ONBOARDING_TOKEN_TTL_MINUTES", "480")),
         allow_signup=os.environ.get("ONBOARDING_ALLOW_SIGNUP", "true").lower() == "true",
+        browser_timeout_ms=int(os.environ.get("ONBOARDING_BROWSER_TIMEOUT_MS", "5000")),
+        browser_headless=os.environ.get("ONBOARDING_BROWSER_HEADLESS", "true").lower() == "true",
     )

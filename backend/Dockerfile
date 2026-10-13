@@ -1,7 +1,13 @@
 FROM python:3.13-slim
 
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 WORKDIR /srv
+
+# Chromium and its OS libraries for the browser channel. Kept in its own early layer so that code
+# changes do not re-download the browser. Version matches pyproject's playwright requirement.
+RUN pip install --no-cache-dir "playwright>=1.48,<2" \
+    && playwright install --with-deps chromium
 
 COPY pyproject.toml ./
 COPY app ./app

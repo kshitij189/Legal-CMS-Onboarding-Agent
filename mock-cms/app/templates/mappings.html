@@ -33,7 +33,7 @@
 <h2>Add or update mapping</h2>
 <form method="post" action="/config/mappings" class="stacked">
   <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
-  <label for="source_key">Source field key</label>
+  <label for="source_key">{{ ui.source_key }}</label>
   <input type="text" id="source_key" name="source_key" value="{{ form.source_key or '' }}" required>
   <label for="target_field">Target field</label>
   <select id="target_field" name="target_field" required>
@@ -46,7 +46,7 @@
   </select>
   <label for="value_map">Value map (enum targets only, one source=target per line)</label>
   <textarea id="value_map" name="value_map" rows="4">{{ form.value_map or '' }}</textarea>
-  <button type="submit">Save mapping</button>
+  <button type="submit">{{ ui.save_mapping }}</button>
 </form>
 {% endif %}
 {% endblock %}

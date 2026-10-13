@@ -8,7 +8,7 @@
   <select id="entity" name="entity">
     {% for e in entities %}<option value="{{ e.value }}" {% if form.entity == e.value %}selected{% endif %}>{{ e.value }}</option>{% endfor %}
   </select>
-  <label for="name">Field name</label>
+  <label for="name">{{ ui.custom_field_name }}</label>
   <input type="text" id="name" name="name" value="{{ form.name or '' }}" aria-describedby="name-help" required>
   <span id="name-help" class="muted">Lowercase letters, digits and underscores. The key becomes &lt;entity&gt;.custom.&lt;name&gt;.</span>
   <label for="label">Label</label>
@@ -22,6 +22,6 @@
   <label><input type="checkbox" name="required" value="on" {% if form.required %}checked{% endif %}> Required</label>
   <label for="options">Options (enum only, one per line)</label>
   <textarea id="options" name="options" rows="4">{{ form.options or '' }}</textarea>
-  <button type="submit">Create field</button>
+  <button type="submit">{{ ui.create_field }}</button>
 </form>
 {% endblock %}

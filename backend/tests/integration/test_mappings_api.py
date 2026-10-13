@@ -1,6 +1,5 @@
 """Proposal -> review -> approval through the API, with a deterministic fake LLM."""
 
-import json
 from typing import Any
 
 import pytest
@@ -361,7 +360,10 @@ def test_other_firms_cannot_see_or_review(client: TestClient) -> None:
     assert own.status_code == 404
 
 
-def test_no_execution_path_exists_in_phase_3() -> None:
-    paths = json.dumps(app.openapi()["paths"])
-    for word in ("execute", "apply", "configure"):
-        assert word not in paths
+def test_writes_are_only_reachable_through_an_approved_version() -> None:
+    """The only write endpoint takes an approved mapping version id; the LLM has no write tools."""
+    paths = app.openapi()["paths"]
+    writing = [p for p in paths if any(w in p for w in ("execute", "apply", "configure"))]
+    assert writing == ["/api/v1/onboarding-projects/{project_id}/execute"]
+    schema = app.openapi()["components"]["schemas"]["ExecuteRequest"]
+    assert set(schema["properties"]) == {"mapping_version_id", "channel"}

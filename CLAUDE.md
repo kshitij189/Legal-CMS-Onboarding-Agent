@@ -211,6 +211,8 @@ cd backend; py -3.13 -m venv .venv; .\.venv\Scripts\python -m pip install -e ".[
 .\.venv\Scripts\python -m uvicorn app.main:app --port 8200   # backend API (http://localhost:8200/docs)
 .\.venv\Scripts\python -m pytest                    # all tests; live_cms tests need mock CMS on :8100
 .\.venv\Scripts\python -m pytest -m "not live_cms"  # without the running mock CMS
+.\.venv\Scripts\python -m playwright install chromium  # once, for browser execution and e2e tests
+.\.venv\Scripts\python -m pytest tests/e2e            # browser end-to-end (needs mock-cms/.venv)
 .\.venv\Scripts\python -m ruff check . ; .\.venv\Scripts\python -m mypy app tests
 ```
 
@@ -310,6 +312,25 @@ Keep this section current as phases add commands.
   `python -m pytest -m live_llm -s` (writes `docs/evidence/phase3-live-llm-run.json`).
 
 ## 10. Browser automation rules (Playwright)
+
+### As implemented (Phase 4)
+- `backend/app/integrations/browser_cms.py`: controls by exact label / role+name only, each must
+  match exactly once (else `ui_drift`, stop); every request checked against allowed origins;
+  `trace.zip` + `failure.png` saved under `artifacts/runs/<run_id>/` only on failure. Control names
+  live in `LABELS`; a vendor rename is drift to report, not something to "fix" by fuzzy matching.
+- `domain/execution_plan.py` (pure): plan from an approved version only (custom fields first),
+  `action_state` (done / todo / conflict), `check_drift` (blocking for targeted fields),
+  `verify` (match / mismatch / missing).
+- `domain/execution_service.py`: only the current approved version with current schemas; one
+  running run per project (partial unique index); drift pre-flight; read-before-write per step;
+  `uncertain`/`transient` writes are re-read before at most one retry; first failure stops the
+  run; outcome decided by read-after-write verification. Reads always use the API.
+- `POST /execute` accepts only `{mapping_version_id, channel: api|browser}`; reports via
+  `GET /runs[/{id}]` and `GET /verification`.
+- Mock CMS `MOCK_CMS_UI_VARIANT=v2` renames controls to simulate a UI release (drift tests).
+- E2E tests (`tests/e2e`, marker `e2e`) start mock CMS processes from `mock-cms/.venv` on the
+  isolated `mock_cms_e2e` DB (ports 8199 v1 / 8198 v2) and drive Chromium; they never touch demo
+  data. `WRITE_EVIDENCE=1` records the Firm A run in `docs/evidence/`.
 
 - Prefer documented APIs; use Playwright only for UI-only operations.
 - Locators by role, label, accessible name. No coordinates, no fixed sleeps; use auto-waiting and
