@@ -1,0 +1,35 @@
+{
+  "id": "val-05-invalid-enum-option",
+  "category": "incompatible_types",
+  "description": "Value map to an option the CMS lacks.",
+  "source": {
+    "format": "json_schema",
+    "file": "source-schemas/firm-a.schema.json"
+  },
+  "untrusted_fields": [],
+  "proposals": [
+    {
+      "source_field": "matter_type",
+      "decision": "map",
+      "target_field": "matter.practice_area",
+      "transformation": "none",
+      "confidence": 0.9,
+      "rationale": "scripted",
+      "value_map": [
+        {
+          "source_value": "Family",
+          "target_value": "divorce"
+        }
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "source_field": "matter_type",
+      "status": "invalid",
+      "codes": [
+        "invalid_enum_option"
+      ]
+    }
+  ]
+}

@@ -149,7 +149,7 @@ live in a controlled extension structure, never discarded. No pairwise source→
 | Database | PostgreSQL 17 |
 | ORM / migrations | SQLAlchemy 2.x + Alembic |
 | Durable workflows | Self-hosted Temporal (Phase 5) |
-| Frontend | Next.js + TypeScript (Phase 6) |
+| Frontend | Next.js 15 + TypeScript (App Router, no UI library; `frontend/`) |
 | Artifacts | Local filesystem (`artifacts/`, git-ignored) |
 | Testing | pytest + Playwright |
 | Observability | OpenTelemetry + structured (JSON) logging; Langfuse optional |
@@ -209,8 +209,8 @@ cd backend; py -3.13 -m venv .venv; .\.venv\Scripts\python -m pip install -e ".[
 .\.venv\Scripts\python -m alembic upgrade head      # migrate onboarding DB
 .\.venv\Scripts\python -m app.seed                  # demo firms A/B/C, reviewers, connectors
 .\.venv\Scripts\python -m uvicorn app.main:app --port 8200   # backend API (http://localhost:8200/docs)
-.\.venv\Scripts\python -m pytest                    # all tests; live_cms tests need mock CMS on :8100
-.\.venv\Scripts\python -m pytest -m "not live_cms"  # without the running mock CMS
+.\.venv\Scripts\python -m pytest                    # all tests (e2e needs mock-cms/.venv, Chromium, Temporal :7234)
+.\.venv\Scripts\python -m pytest -m "not e2e"       # unit + integration only (Postgres)
 .\.venv\Scripts\python -m playwright install chromium  # once, for browser execution and e2e tests
 .\.venv\Scripts\python -m pytest tests/e2e            # browser + durable-run e2e (needs mock-cms/.venv;
                                                      # durable tests need Temporal on :7234)
@@ -240,6 +240,16 @@ needs `Authorization: Bearer <token>`. Demo reviewers: `<a|b|c>.admin` (firm_adm
 
 On a volume created before Phase 2, create the backend DBs once:
 `docker compose exec postgres psql -U lcms -d lcms -c "CREATE DATABASE onboarding;" -c "CREATE DATABASE onboarding_test;"`
+
+Dashboard (Next.js 15, `frontend/`, port 3000; proxies `/api/*` to `BACKEND_URL`, default
+http://localhost:8200):
+
+```powershell
+cd frontend; npm install; npm run dev            # development
+npm run build; npx next start -p 3000            # production build
+npx tsc --noEmit; npm run lint                   # checks
+backend\.venv\Scripts\python scripts\dashboard_walkthrough.py   # Playwright walkthrough + screenshots
+```
 
 Mock CMS demo logins (synthetic): `<a|b|c>.<admin|integration|intake|staff>` with password
 `MOCK_CMS_SEED_PASSWORD` (default `demo-password`). OpenAPI docs: http://localhost:8100/docs.
@@ -394,6 +404,21 @@ Keep this section current as phases add commands.
 - Optional self-hosted Langfuse for LLM traces — only if the user opts in.
 
 ## 14. Testing and evaluation
+
+### As implemented (Phase 6)
+- One command: `backend\.venv\Scripts\python scripts\run_evaluations.py` (replays recorded LLM
+  answers; `--llm live` re-records via the provider chain, ~20 s pacing for Groq's token limit;
+  `--only <prefix>` filters). Rebuilds the `onboarding_eval` DB from migrations; writes
+  `docs/evidence/evaluation-report.{json,md}`; exits 1 if a hard safety criterion fails.
+- Scenarios: `fixtures/evaluation/mapping/*.json` (labels: `map` exact target / `review` / `not_mapped`),
+  `fixtures/evaluation/validation/*.json` (scripted proposals → expected status + codes),
+  execution scenarios in `backend/app/evaluation/execution_eval.py` (real API + stages, in-memory CMS
+  with faults). Recorded answers: `fixtures/evaluation/llm-cache.json` (keyed by prompt hash — a
+  prompt change requires a live re-record). Add a regression scenario for every agent failure.
+- Shared simulations (`InMemoryCMS`, `ScriptedLLM`) live in `backend/app/evaluation/simulation.py`
+  and are reused by the tests; do not fork them.
+- No test may depend on the developer's demo data: CMS-backed tests use the e2e harness
+  (`tests/e2e/harness.py`, isolated `mock_cms_e2e`).
 
 - Write tests with each feature. Layers: `unit` (pure logic), `integration` (API + real Postgres),
   `browser` (Playwright vs mock CMS), `evaluation` (labelled scenarios).

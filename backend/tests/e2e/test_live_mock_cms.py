@@ -1,13 +1,12 @@
-"""End-to-end against the running mock CMS (docker compose up mock-cms; seeded demo data).
+"""Inspection against a real mock CMS process (Phase 2 acceptance).
 
-These tests talk to a real second service, so they are marked `live_cms`. They skip with a clear
-reason when the mock CMS is not reachable; Phase 2 acceptance evidence requires running them.
+Runs on the isolated e2e harness (its own database, reset before each test), never on the
+developer's demo data — earlier versions used the demo instance on :8100 and broke whenever demo
+data changed.
 """
 
 import json
-import os
 
-import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -16,20 +15,11 @@ from app.integrations.mock_cms import MockCMSAdapter
 from app.integrations.secrets import Credentials
 from app.schemas.normalized import NormalizedSchema
 from tests.conftest import FIXTURES, SOURCE_FILES, read_fixture
+from tests.e2e.harness import PASSWORD
+from tests.e2e.harness import V1 as BASE_URL
 from tests.integration.conftest import setup_firm
 
-BASE_URL = os.environ.get("MOCK_CMS_BASE_URL", "http://localhost:8100")
-PASSWORD = os.environ.get("MOCK_CMS_SEED_PASSWORD", "demo-password")
-
-pytestmark = pytest.mark.live_cms
-
-
-@pytest.fixture(scope="module", autouse=True)
-def require_mock_cms() -> None:
-    try:
-        httpx.get(f"{BASE_URL}/healthz", timeout=2).raise_for_status()
-    except httpx.HTTPError as exc:
-        pytest.skip(f"mock CMS not reachable at {BASE_URL}: {exc}")
+pytestmark = [pytest.mark.e2e, pytest.mark.usefixtures("cms")]
 
 
 def test_live_target_matches_snapshot() -> None:
@@ -60,7 +50,7 @@ def test_full_phase2_flow_for_each_firm(
     prefix = f"ONBOARDING_SECRET_{firm.upper().replace('-', '_')}_MOCK_CMS"
     monkeypatch.setenv(f"{prefix}_USERNAME", f"{firm[-1]}.integration")
     monkeypatch.setenv(f"{prefix}_PASSWORD", PASSWORD)
-    ctx = setup_firm(client, firm)
+    ctx = setup_firm(client, firm, base_url=BASE_URL)
     url = f"/api/v1/onboarding-projects/{ctx.project_id}"
 
     fmt, path = SOURCE_FILES[firm]

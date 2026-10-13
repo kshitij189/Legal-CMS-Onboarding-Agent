@@ -1,0 +1,31 @@
+{
+  "id": "map-18-spanish-labels",
+  "category": "same_meaning_different_names",
+  "description": "Spanish field names and labels.",
+  "source": {
+    "format": "html_form",
+    "content": "<form><label for=\"a\">Nombre completo</label><input id=\"a\" name=\"nombre_completo\" required><label for=\"b\">Correo electrónico</label><input id=\"b\" type=\"email\" name=\"correo\"><label for=\"c\">Teléfono</label><input id=\"c\" type=\"tel\" name=\"telefono\"><label for=\"d\">Parte contraria</label><input id=\"d\" name=\"parte_contraria\"></form>"
+  },
+  "labels": [
+    {
+      "source_field": "nombre_completo",
+      "expect": "map",
+      "target_field": "contact.full_name"
+    },
+    {
+      "source_field": "correo",
+      "expect": "map",
+      "target_field": "contact.email"
+    },
+    {
+      "source_field": "telefono",
+      "expect": "map",
+      "target_field": "contact.phone_number"
+    },
+    {
+      "source_field": "parte_contraria",
+      "expect": "map",
+      "target_field": "matter.opposing_party"
+    }
+  ]
+}

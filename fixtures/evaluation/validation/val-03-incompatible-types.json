@@ -1,0 +1,29 @@
+{
+  "id": "val-03-incompatible-types",
+  "category": "incompatible_types",
+  "description": "Boolean into a text field.",
+  "source": {
+    "format": "json_schema",
+    "file": "source-schemas/firm-a.schema.json"
+  },
+  "untrusted_fields": [],
+  "proposals": [
+    {
+      "source_field": "consent_to_contact",
+      "decision": "map",
+      "target_field": "matter.jurisdiction",
+      "transformation": "none",
+      "confidence": 0.9,
+      "rationale": "scripted"
+    }
+  ],
+  "expected": [
+    {
+      "source_field": "consent_to_contact",
+      "status": "invalid",
+      "codes": [
+        "incompatible_types"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "id": "val-10-phone-not-normalized",
+  "category": "human_review",
+  "description": "Phone without normalisation would be rejected by the CMS.",
+  "source": {
+    "format": "json_schema",
+    "file": "source-schemas/firm-a.schema.json"
+  },
+  "untrusted_fields": [],
+  "proposals": [
+    {
+      "source_field": "client_mobile",
+      "decision": "map",
+      "target_field": "contact.phone_number",
+      "transformation": "none",
+      "confidence": 0.9,
+      "rationale": "scripted"
+    }
+  ],
+  "expected": [
+    {
+      "source_field": "client_mobile",
+      "status": "needs_review",
+      "codes": [
+        "phone_not_normalized"
+      ]
+    }
+  ]
+}

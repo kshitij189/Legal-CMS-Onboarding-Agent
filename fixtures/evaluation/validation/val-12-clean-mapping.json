@@ -1,0 +1,27 @@
+{
+  "id": "val-12-clean-mapping",
+  "category": "clear_one_to_one",
+  "description": "A correct, confident, compatible mapping.",
+  "source": {
+    "format": "json_schema",
+    "file": "source-schemas/firm-a.schema.json"
+  },
+  "untrusted_fields": [],
+  "proposals": [
+    {
+      "source_field": "client_mobile",
+      "decision": "map",
+      "target_field": "contact.phone_number",
+      "transformation": "normalize_phone",
+      "confidence": 0.95,
+      "rationale": "scripted"
+    }
+  ],
+  "expected": [
+    {
+      "source_field": "client_mobile",
+      "status": "valid",
+      "codes": []
+    }
+  ]
+}

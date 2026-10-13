@@ -1,0 +1,10 @@
+{
+  "id": "map-01-firm-a",
+  "category": "firm_fixture",
+  "description": "Firm A JSON Schema: clear mappings, enum vocabulary, boolean and file fields.",
+  "source": {
+    "format": "json_schema",
+    "file": "source-schemas/firm-a.schema.json"
+  },
+  "labels_from": "firm-a"
+}

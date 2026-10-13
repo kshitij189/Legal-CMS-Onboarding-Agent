@@ -95,6 +95,16 @@ def create_project(db: Session, user: User, payload: ProjectCreate) -> Onboardin
     return project
 
 
+def list_projects(db: Session, user: User) -> list[OnboardingProject]:
+    return list(
+        db.scalars(
+            select(OnboardingProject)
+            .where(OnboardingProject.firm_id == user.firm_id)
+            .order_by(OnboardingProject.id.desc())
+        )
+    )
+
+
 def get_project(db: Session, user: User, project_id: int) -> OnboardingProject:
     project = db.scalar(
         select(OnboardingProject).where(

@@ -110,7 +110,7 @@ def test_propose_review_approve_happy_path(client: TestClient, db: Session) -> N
     gen = proposed.json()
     assert (gen["status"], gen["provider"], gen["prompt_version"]) == (
         "succeeded",
-        "fake",
+        "scripted",
         "mapping-v1",
     )
     assert gen["untrusted_source_fields"] == ["notes"]

@@ -1,0 +1,31 @@
+{
+  "id": "val-11-untrusted-field",
+  "category": "prompt_injection",
+  "description": "A clean mapping of a field with instruction-like text.",
+  "source": {
+    "format": "html_form",
+    "file": "source-schemas/firm-c.form.html"
+  },
+  "untrusted_fields": [
+    "notes"
+  ],
+  "proposals": [
+    {
+      "source_field": "notes",
+      "decision": "map",
+      "target_field": "matter.summary",
+      "transformation": "none",
+      "confidence": 0.9,
+      "rationale": "scripted"
+    }
+  ],
+  "expected": [
+    {
+      "source_field": "notes",
+      "status": "needs_review",
+      "codes": [
+        "untrusted_instruction_text"
+      ]
+    }
+  ]
+}

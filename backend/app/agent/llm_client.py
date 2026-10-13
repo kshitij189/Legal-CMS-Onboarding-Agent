@@ -18,6 +18,7 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from app.agent.tool_registry import GEMINI_UNSUPPORTED_KEYWORDS, ToolSpec, inline_json_schema
+from app.config import get_settings
 
 log = logging.getLogger(__name__)
 
@@ -276,6 +277,7 @@ def build_llm_client() -> LLMClient:
     the most accurate and fast; Gemini 3.5 Flash Lite is the backup because its free-tier quota
     (500/day) and ~3 s latency make it available when Groq is rate limited.
     """
+    get_settings()  # loads the git-ignored .env (keys) for local runs, whoever calls first
     timeout = float(os.environ.get("LLM_TIMEOUT_SECONDS", "90"))
     clients: list[LLMClient] = []
     for name in os.environ.get("LLM_PROVIDERS", "groq,gemini").split(","):

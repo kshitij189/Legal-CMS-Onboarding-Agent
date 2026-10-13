@@ -1,0 +1,36 @@
+{
+  "id": "map-17-nested-json",
+  "category": "clear_one_to_one",
+  "description": "Nested JSON Schema objects flattened to dotted keys.",
+  "source": {
+    "format": "json_schema",
+    "content": "{\n \"type\": \"object\",\n \"required\": [\n  \"client\"\n ],\n \"properties\": {\n  \"client\": {\n   \"type\": \"object\",\n   \"required\": [\n    \"name\"\n   ],\n   \"properties\": {\n    \"name\": {\n     \"type\": \"string\",\n     \"title\": \"Name\"\n    },\n    \"email\": {\n     \"type\": \"string\",\n     \"format\": \"email\",\n     \"title\": \"Email\"\n    },\n    \"mobile\": {\n     \"type\": \"string\",\n     \"format\": \"phone\",\n     \"title\": \"Mobile\"\n    }\n   }\n  },\n  \"matter\": {\n   \"type\": \"object\",\n   \"properties\": {\n    \"area\": {\n     \"type\": \"string\",\n     \"title\": \"Practice area\",\n     \"enum\": [\n      \"Immigration\",\n      \"Estate planning\"\n     ]\n    },\n    \"adverse\": {\n     \"type\": \"string\",\n     \"title\": \"Adverse party\"\n    }\n   }\n  }\n }\n}"
+  },
+  "labels": [
+    {
+      "source_field": "client.name",
+      "expect": "map",
+      "target_field": "contact.full_name"
+    },
+    {
+      "source_field": "client.email",
+      "expect": "map",
+      "target_field": "contact.email"
+    },
+    {
+      "source_field": "client.mobile",
+      "expect": "map",
+      "target_field": "contact.phone_number"
+    },
+    {
+      "source_field": "matter.area",
+      "expect": "map",
+      "target_field": "matter.practice_area"
+    },
+    {
+      "source_field": "matter.adverse",
+      "expect": "map",
+      "target_field": "matter.opposing_party"
+    }
+  ]
+}

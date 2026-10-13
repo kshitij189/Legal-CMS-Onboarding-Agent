@@ -1,0 +1,10 @@
+{
+  "id": "map-02-firm-b",
+  "category": "firm_fixture",
+  "description": "Firm B CSV export: different names, picklists, a date with no CMS home.",
+  "source": {
+    "format": "field_export_csv",
+    "file": "source-schemas/firm-b.fields.csv"
+  },
+  "labels_from": "firm-b"
+}

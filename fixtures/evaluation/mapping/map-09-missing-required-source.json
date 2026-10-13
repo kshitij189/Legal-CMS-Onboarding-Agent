@@ -1,0 +1,31 @@
+{
+  "id": "map-09-missing-required-source",
+  "category": "missing_required_source",
+  "description": "The form never asks for the matter category, which the CMS requires.",
+  "source": {
+    "format": "json_schema",
+    "content": "{\n \"type\": \"object\",\n \"required\": [\n  \"name\"\n ],\n \"properties\": {\n  \"name\": {\n   \"type\": \"string\",\n   \"title\": \"Name\"\n  },\n  \"email\": {\n   \"type\": \"string\",\n   \"format\": \"email\",\n   \"title\": \"Email\"\n  },\n  \"phone\": {\n   \"type\": \"string\",\n   \"format\": \"phone\",\n   \"title\": \"Phone\"\n  }\n }\n}"
+  },
+  "labels": [
+    {
+      "source_field": "name",
+      "expect": "map",
+      "target_field": "contact.full_name"
+    },
+    {
+      "source_field": "email",
+      "expect": "map",
+      "target_field": "contact.email"
+    },
+    {
+      "source_field": "phone",
+      "expect": "map",
+      "target_field": "contact.phone_number"
+    }
+  ],
+  "checks": {
+    "coverage_gaps": [
+      "matter.practice_area"
+    ]
+  }
+}

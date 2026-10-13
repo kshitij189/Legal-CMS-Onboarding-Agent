@@ -1,0 +1,29 @@
+{
+  "id": "val-07-transformation-for-wrong-type",
+  "category": "unsupported_transformation",
+  "description": "Phone normalisation into an email field.",
+  "source": {
+    "format": "json_schema",
+    "file": "source-schemas/firm-a.schema.json"
+  },
+  "untrusted_fields": [],
+  "proposals": [
+    {
+      "source_field": "client_email",
+      "decision": "map",
+      "target_field": "contact.email",
+      "transformation": "normalize_phone",
+      "confidence": 0.9,
+      "rationale": "scripted"
+    }
+  ],
+  "expected": [
+    {
+      "source_field": "client_email",
+      "status": "invalid",
+      "codes": [
+        "transformation_incompatible"
+      ]
+    }
+  ]
+}

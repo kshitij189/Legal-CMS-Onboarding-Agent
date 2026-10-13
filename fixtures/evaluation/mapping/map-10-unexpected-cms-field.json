@@ -1,0 +1,42 @@
+{
+  "id": "map-10-unexpected-cms-field",
+  "category": "unexpected_cms_field",
+  "description": "The CMS already has a firm-specific custom field the agent should use.",
+  "add_target_fields": [
+    {
+      "key": "matter.custom.referral_channel",
+      "label": "Referral channel",
+      "description": "How the client found the firm.",
+      "data_type": "enum",
+      "required": false,
+      "options": [
+        "web",
+        "phone",
+        "walk_in"
+      ],
+      "entity": "matter",
+      "canonical_ref": null,
+      "extensions": {
+        "mock-cms": {
+          "is_custom": true
+        }
+      }
+    }
+  ],
+  "source": {
+    "format": "json_schema",
+    "content": "{\n \"type\": \"object\",\n \"required\": [\n  \"client_name\"\n ],\n \"properties\": {\n  \"client_name\": {\n   \"type\": \"string\",\n   \"title\": \"Client name\"\n  },\n  \"how_found\": {\n   \"type\": \"string\",\n   \"title\": \"How did you find us?\",\n   \"enum\": [\n    \"Website\",\n    \"Phone call\",\n    \"Walk-in\"\n   ]\n  }\n }\n}"
+  },
+  "labels": [
+    {
+      "source_field": "client_name",
+      "expect": "map",
+      "target_field": "contact.full_name"
+    },
+    {
+      "source_field": "how_found",
+      "expect": "map",
+      "target_field": "matter.custom.referral_channel"
+    }
+  ]
+}

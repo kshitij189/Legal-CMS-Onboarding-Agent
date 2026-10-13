@@ -259,6 +259,16 @@ def test_projects_and_schemas_are_invisible_to_other_firms(client: TestClient) -
     assert client.get(url, headers=a.admin).status_code == 404
 
 
+def test_projects_are_listed_per_firm(client: TestClient) -> None:
+    a = setup_firm(client, "firm-a")
+    b = setup_firm(client, "firm-b")
+    listed = client.get("/api/v1/onboarding-projects", headers=a.specialist).json()
+    assert [p["id"] for p in listed] == [a.project_id]
+    assert [p["id"] for p in client.get("/api/v1/onboarding-projects", headers=b.admin).json()] == [
+        b.project_id
+    ]
+
+
 def test_connector_secrets_are_not_stored(client: TestClient, db: Session) -> None:
     setup_firm(client)
     connector = db.scalar(select(CMSConnector))

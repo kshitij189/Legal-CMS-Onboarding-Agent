@@ -42,7 +42,6 @@ include = ["app*"]
 testpaths = ["tests"]
 addopts = '-ra -m "not live_llm"'  # live LLM calls cost quota: run with -m live_llm
 markers = [
-    "live_cms: requires the mock CMS running at MOCK_CMS_BASE_URL with seeded demo data",
     "live_llm: calls real LLM providers (needs GEMINI_API_KEY/GROQ_API_KEY; costs quota)",
     "e2e: starts mock CMS processes and drives a real browser (needs mock-cms/.venv and Chromium)",
 ]

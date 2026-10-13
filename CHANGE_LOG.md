@@ -472,3 +472,65 @@ with another application (279 Flash Lite requests that day were not from this pr
 - Required-field changes in plans: deferred by the user.
 - The demo databases now contain a completed Firm B onboarding from the container test
   (reset commands in CLAUDE.md).
+
+
+---
+
+## Phase 6 — Evaluation + dashboard
+
+### 2026-10-13 — Evaluation suite (46 scenarios) and Next.js dashboard (status: COMPLETED)
+
+**Added**
+- `backend/app/evaluation/`: `simulation.py` (in-memory CMS with faults incl. crash-after-write and
+  silent wrong save; scripted LLM — now shared with the tests), `fixtures.py`, `mapping_eval.py`
+  (mapping and validator scenarios, scoring), `execution_eval.py` (16 execution-safety scenarios via
+  the real API and stages), `llm_cache.py` (record/replay keyed by prompt hash), `runner.py`
+  (metrics, JSON/Markdown report, exit code).
+- `scripts/run_evaluations.py` (one command); `fixtures/evaluation/{mapping,validation}/` (30
+  labelled scenario files) and `llm-cache.json` (recorded Groq answers, synthetic data only);
+  database `onboarding_eval` (init script).
+- Reports: `docs/evidence/evaluation-report.{json,md}`.
+- `frontend/`: Next.js 15 + TypeScript dashboard (App Router, no UI library): sign-in / firm sign-up,
+  projects, upload, inspect, propose, schemas, mapping review (approve/reject/edit/ask), versions,
+  execute (browser/API), live run status with explained steps/drift/verification, audit log;
+  plain-language explanations in `lib/explain.ts`; same-origin proxy to the backend.
+- `GET /api/v1/onboarding-projects` (firm-scoped list) + test.
+- `scripts/dashboard_walkthrough.py` (Playwright journeys with screenshots in
+  `docs/evidence/phase6-dashboard/`).
+- Tests: `tests/unit/test_evaluation.py` (scoring rules, record/replay, scenario integrity).
+
+**Decisions and rationale**
+- *Labels as outcomes, not exact answers*: `map` (exact target), `review` (anything but a valid
+  mapping), `not_mapped` — measuring whether a human is involved when needed, and counting *valid but
+  wrong* proposals separately as the safety-relevant model error.
+- *Record/replay*: live runs cost quota and vary; replay makes the suite deterministic, free and
+  CI-ready. Keys hash the exact prompt, so prompt changes force a re-record.
+- *Execution scenarios on the in-memory CMS*: fault injection for timeouts, lost writes, crashes and
+  silent corruption is only practical in simulation; browser and Temporal paths are covered by e2e.
+- *Every "succeeded" run is re-verified by the runner* against the CMS state (false-success count),
+  independently of the executor's own verification.
+- *Mapping accuracy does not fail the run*; safety criteria do (exit code 1).
+- *Dashboard via Next.js rewrites*: no CORS configuration, tokens stay same-origin.
+- *Label for map-15 kept*: the model's "ambiguous" answer is reported as a disagreement rather than
+  re-labelled to fit.
+
+**Dependencies added** frontend: `next` 15.5.27, `react`/`react-dom` 19.1.0, TypeScript, ESLint
+(create-next-app defaults). No backend dependencies.
+
+**Tests executed (actual results)**
+- Evaluation, live (Groq): 46 scenarios, 439 s — clear mapping accuracy 98.5 % (66/67), human-review
+  recall 100 % (15/15), unsafe valid proposals 0, validator 12/12, execution 16/16, unsafe-write 0 %,
+  duplicate 0 %, recovery 100 %, false success 0. Replay: identical metrics in 23 s.
+- Mutation: executor ignoring verification → evaluation reports 1 false success, exit code 1.
+- `backend: pytest` — 188 passed, 1 deselected. `mock-cms: pytest` — 76 passed. ruff + mypy clean.
+- Dashboard: `tsc --noEmit`, ESLint, `next build` clean; Playwright walkthrough of a successful
+  (Firm A) and a failed UI-drift (Firm B) onboarding against the full Compose stack.
+
+**Bugs found and fixed**
+- LLM client did not load `.env` unless settings were read first (fixed in `build_llm_client`).
+- Live-CMS tests coupled to demo data (moved to the isolated e2e harness; `live_cms` marker removed).
+- Walkthrough waits too short / mock CMS restart race (script fixed; the UI reported the outage
+  correctly).
+
+**Known issues / limitations**
+- Dashboard not containerised; walkthrough not part of pytest; demo DBs contain walkthrough data.

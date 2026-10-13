@@ -1,0 +1,25 @@
+{
+  "id": "map-07-ambiguous-contact",
+  "category": "ambiguous_target",
+  "description": "One free-text field that may hold a phone number or an email address.",
+  "source": {
+    "format": "json_schema",
+    "content": "{\n \"type\": \"object\",\n \"required\": [\n  \"full_name\"\n ],\n \"properties\": {\n  \"full_name\": {\n   \"type\": \"string\",\n   \"title\": \"Full name\"\n  },\n  \"contact_detail\": {\n   \"type\": \"string\",\n   \"title\": \"How should we reach you? (phone or email)\"\n  },\n  \"case_kind\": {\n   \"type\": \"string\",\n   \"title\": \"Case kind\",\n   \"enum\": [\n    \"Employment\",\n    \"Immigration\"\n   ]\n  }\n }\n}"
+  },
+  "labels": [
+    {
+      "source_field": "full_name",
+      "expect": "map",
+      "target_field": "contact.full_name"
+    },
+    {
+      "source_field": "contact_detail",
+      "expect": "review"
+    },
+    {
+      "source_field": "case_kind",
+      "expect": "map",
+      "target_field": "matter.practice_area"
+    }
+  ]
+}

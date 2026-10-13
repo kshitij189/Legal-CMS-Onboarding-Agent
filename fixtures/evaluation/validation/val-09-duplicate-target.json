@@ -1,0 +1,44 @@
+{
+  "id": "val-09-duplicate-target",
+  "category": "human_review",
+  "description": "Two source fields onto one CMS field.",
+  "source": {
+    "format": "json_schema",
+    "file": "source-schemas/firm-a.schema.json"
+  },
+  "untrusted_fields": [],
+  "proposals": [
+    {
+      "source_field": "client_email",
+      "decision": "map",
+      "target_field": "contact.email",
+      "transformation": "lowercase",
+      "confidence": 0.9,
+      "rationale": "scripted"
+    },
+    {
+      "source_field": "client_full_name",
+      "decision": "map",
+      "target_field": "contact.email",
+      "transformation": "lowercase",
+      "confidence": 0.9,
+      "rationale": "scripted"
+    }
+  ],
+  "expected": [
+    {
+      "source_field": "client_email",
+      "status": "needs_review",
+      "codes": [
+        "duplicate_target"
+      ]
+    },
+    {
+      "source_field": "client_full_name",
+      "status": "needs_review",
+      "codes": [
+        "duplicate_target"
+      ]
+    }
+  ]
+}

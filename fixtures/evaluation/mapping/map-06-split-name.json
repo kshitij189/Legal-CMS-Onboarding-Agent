@@ -1,0 +1,24 @@
+{
+  "id": "map-06-split-name",
+  "category": "ambiguous_target",
+  "description": "First and last name as separate fields; the CMS only has a full name. Neither part alone is the full name: a human must decide.",
+  "source": {
+    "format": "json_schema",
+    "content": "{\n \"type\": \"object\",\n \"required\": [\n  \"first_name\",\n  \"last_name\"\n ],\n \"properties\": {\n  \"first_name\": {\n   \"type\": \"string\",\n   \"title\": \"First name\"\n  },\n  \"last_name\": {\n   \"type\": \"string\",\n   \"title\": \"Last name\"\n  },\n  \"email\": {\n   \"type\": \"string\",\n   \"format\": \"email\",\n   \"title\": \"Email\"\n  }\n }\n}"
+  },
+  "labels": [
+    {
+      "source_field": "first_name",
+      "expect": "review"
+    },
+    {
+      "source_field": "last_name",
+      "expect": "review"
+    },
+    {
+      "source_field": "email",
+      "expect": "map",
+      "target_field": "contact.email"
+    }
+  ]
+}

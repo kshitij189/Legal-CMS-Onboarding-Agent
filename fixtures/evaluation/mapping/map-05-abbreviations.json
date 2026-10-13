@@ -1,0 +1,36 @@
+{
+  "id": "map-05-abbreviations",
+  "category": "same_meaning_different_names",
+  "description": "Terse legacy abbreviations explained only in descriptions.",
+  "source": {
+    "format": "field_export_csv",
+    "content": "field_name,label,type,required,description,options\ncl_nm,Cl. Nm.,Text,Y,Client full name,\ncl_eml,Cl. Eml.,Email,N,Client email,\ncl_ph,Cl. Ph.,Phone,N,Client phone,\nmatt_cat,Matt. Cat.,Picklist,Y,Matter category: PI=personal injury; EMP=employment; IMM=immigration,PI|EMP|IMM\nopp_pty,Opp. Pty.,Text,N,Opposing party,\n"
+  },
+  "labels": [
+    {
+      "source_field": "cl_nm",
+      "expect": "map",
+      "target_field": "contact.full_name"
+    },
+    {
+      "source_field": "cl_eml",
+      "expect": "map",
+      "target_field": "contact.email"
+    },
+    {
+      "source_field": "cl_ph",
+      "expect": "map",
+      "target_field": "contact.phone_number"
+    },
+    {
+      "source_field": "matt_cat",
+      "expect": "map",
+      "target_field": "matter.practice_area"
+    },
+    {
+      "source_field": "opp_pty",
+      "expect": "map",
+      "target_field": "matter.opposing_party"
+    }
+  ]
+}

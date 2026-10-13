@@ -1,0 +1,33 @@
+{
+  "id": "map-04-synonyms",
+  "category": "same_meaning_different_names",
+  "description": "Applicant/cell/what-happened wording for standard concepts.",
+  "source": {
+    "format": "json_schema",
+    "content": "{\n \"type\": \"object\",\n \"required\": [\n  \"applicant_name\",\n  \"legal_issue\"\n ],\n \"properties\": {\n  \"applicant_name\": {\n   \"type\": \"string\",\n   \"title\": \"Applicant name\"\n  },\n  \"applicant_email\": {\n   \"type\": \"string\",\n   \"format\": \"email\",\n   \"title\": \"Applicant e-mail\"\n  },\n  \"applicant_cell\": {\n   \"type\": \"string\",\n   \"format\": \"phone\",\n   \"title\": \"Cell phone\"\n  },\n  \"legal_issue\": {\n   \"type\": \"string\",\n   \"title\": \"What happened?\",\n   \"enum\": [\n    \"Divorce\",\n    \"Car accident\",\n    \"Fired from job\"\n   ]\n  }\n }\n}"
+  },
+  "labels": [
+    {
+      "source_field": "applicant_name",
+      "expect": "map",
+      "target_field": "contact.full_name"
+    },
+    {
+      "source_field": "applicant_email",
+      "expect": "map",
+      "target_field": "contact.email",
+      "transformation": "lowercase"
+    },
+    {
+      "source_field": "applicant_cell",
+      "expect": "map",
+      "target_field": "contact.phone_number",
+      "transformation": "normalize_phone"
+    },
+    {
+      "source_field": "legal_issue",
+      "expect": "map",
+      "target_field": "matter.practice_area"
+    }
+  ]
+}

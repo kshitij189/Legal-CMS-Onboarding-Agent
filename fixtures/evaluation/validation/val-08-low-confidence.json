@@ -1,0 +1,29 @@
+{
+  "id": "val-08-low-confidence",
+  "category": "human_review",
+  "description": "Correct target but the model is unsure.",
+  "source": {
+    "format": "json_schema",
+    "file": "source-schemas/firm-a.schema.json"
+  },
+  "untrusted_fields": [],
+  "proposals": [
+    {
+      "source_field": "client_email",
+      "decision": "map",
+      "target_field": "contact.email",
+      "transformation": "lowercase",
+      "confidence": 0.3,
+      "rationale": "scripted"
+    }
+  ],
+  "expected": [
+    {
+      "source_field": "client_email",
+      "status": "needs_review",
+      "codes": [
+        "low_confidence"
+      ]
+    }
+  ]
+}

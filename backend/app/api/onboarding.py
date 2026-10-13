@@ -21,6 +21,13 @@ def create_project(
     return project_out(db, project_service.create_project(db, user, body))
 
 
+@router.get("", response_model=list[ProjectOut])
+def list_projects(
+    user: User = Depends(require(Permission.PROJECTS_READ)), db: Session = Depends(get_db)
+) -> list[ProjectOut]:
+    return [project_out(db, p) for p in project_service.list_projects(db, user)]
+
+
 @router.get("/{project_id}", response_model=ProjectOut)
 def get_project(
     project_id: int,

@@ -1,0 +1,29 @@
+{
+  "id": "val-06-unsupported-source-type",
+  "category": "incompatible_types",
+  "description": "Mapping a file array.",
+  "source": {
+    "format": "json_schema",
+    "file": "source-schemas/firm-a.schema.json"
+  },
+  "untrusted_fields": [],
+  "proposals": [
+    {
+      "source_field": "attachments",
+      "decision": "map",
+      "target_field": "matter.summary",
+      "transformation": "none",
+      "confidence": 0.9,
+      "rationale": "scripted"
+    }
+  ],
+  "expected": [
+    {
+      "source_field": "attachments",
+      "status": "invalid",
+      "codes": [
+        "unsupported_source_type"
+      ]
+    }
+  ]
+}

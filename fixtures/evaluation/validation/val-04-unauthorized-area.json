@@ -1,0 +1,29 @@
+{
+  "id": "val-04-unauthorized-area",
+  "category": "unauthorized_operation",
+  "description": "Writing the CMS-managed intake status.",
+  "source": {
+    "format": "json_schema",
+    "file": "source-schemas/firm-a.schema.json"
+  },
+  "untrusted_fields": [],
+  "proposals": [
+    {
+      "source_field": "client_full_name",
+      "decision": "map",
+      "target_field": "matter.intake_status",
+      "transformation": "none",
+      "confidence": 0.9,
+      "rationale": "scripted"
+    }
+  ],
+  "expected": [
+    {
+      "source_field": "client_full_name",
+      "status": "invalid",
+      "codes": [
+        "unauthorized_configuration_area"
+      ]
+    }
+  ]
+}

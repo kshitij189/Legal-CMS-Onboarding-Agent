@@ -6,8 +6,8 @@ A phase is `COMPLETED` only when its acceptance criteria are met and the evidenc
 **Repository inspection (2026-10-12):** the repository was empty — no source code, tests, or
 configuration existed. No phase has verifiable prior work.
 
-**Last completed phase:** Phase 5 — Durable orchestration (2026-10-13).
-**Next phase to implement:** Phase 6 — Evaluation + dashboard (awaiting user authorization).
+**Last completed phase:** Phase 6 — Evaluation + dashboard (2026-10-13).
+**Next phase to implement:** Phase 7 — Hardening + demonstration (awaiting user authorization).
 
 | # | Phase | Status |
 |---|---|---|
@@ -16,7 +16,7 @@ configuration existed. No phase has verifiable prior work.
 | 3 | LLM mapping proposals | COMPLETED |
 | 4 | Playwright execution | COMPLETED |
 | 5 | Durable orchestration (Temporal) | COMPLETED |
-| 6 | Evaluation + dashboard | NOT_STARTED |
+| 6 | Evaluation + dashboard | COMPLETED |
 | 7 | Hardening + demonstration | NOT_STARTED |
 
 ---
@@ -349,14 +349,68 @@ Known limitations (deferred by the user to after Phase 5, unless noted)
 - A crash that kills the *Temporal server* itself relies on its SQLite persistence (not tested).
 
 ## Phase 6 — Evaluation + dashboard
-**Status:** NOT_STARTED
+**Status:** COMPLETED (2026-10-13)
 **Objective:** Scenario runner, metrics, mapping review UI, audit history.
-**Depends on:** Phases 1–5.
+**Depends on:** Phases 1–5 — satisfied.
 
-Tasks / deliverables: 30–50 labelled scenarios; `scripts/run_evaluations.py`; Next.js dashboard
-(projects, schema views, mapping approval, status/logs, report); audit-events endpoint.
-Acceptance criteria: one command runs the suite; dashboard explains successes and failures.
-Required evidence: evaluation report with actual metrics.
+Tasks / deliverables
+- [x] **46 labelled scenarios** covering every row of blueprint §13: 18 mapping-quality (firm
+      fixtures, synonyms, abbreviations, Spanish labels, split names, ambiguity, incompatible types,
+      missing required source, unexpected CMS field, coded options, nested JSON, 3 prompt-injection
+      variants), 12 validator, 16 execution-safety (renamed UI control, save timeout after success,
+      lost write, crash after write, repeated execution, idempotency key, unauthorized operation,
+      superseded version, schema change, target drift, unexpected field, silent wrong save,
+      unmanaged conflict, missing required source, happy paths)
+- [x] One command `scripts/run_evaluations.py`; LLM record/replay (`fixtures/evaluation/llm-cache.json`);
+      isolated `onboarding_eval` DB; JSON + Markdown report; non-zero exit on safety failure
+- [x] Metrics per blueprint: mapping accuracy, required-field coverage, verification success,
+      unsafe-write rate, duplicate-execution rate, recovery success, human-review recall, plus
+      unsafe-valid proposals and false-success reports
+- [x] Next.js dashboard (`frontend/`): sign-in / firm sign-up, projects, create project, upload
+      source schema, inspect target, propose, schemas view, mapping review (approve / reject / edit /
+      ask, plain-language validation issues, injection and coverage warnings), approve version,
+      versions, execute (browser/API), live run status with explained steps, drift and
+      verification, audit log
+- [x] `GET /onboarding-projects` (firm-scoped list); audit-events endpoint (Phase 3) used by the UI
+
+Acceptance criteria — met
+- [x] One command runs the evaluation suite (replay: 46 scenarios in 23 s; live: 7.3 min).
+- [x] The dashboard explains successes and failures (verified run and UI-drift failure screenshots).
+
+Validation evidence (2026-10-13)
+- **Evaluation report** (`docs/evidence/evaluation-report.md`, live run then identical replay):
+  clear mapping accuracy **98.5 %** (66/67 fields, target ≥ 95 %), human-review recall **100 %**
+  (15/15), unsafe valid proposals **0**, invalid proposals 0 %, required-field coverage 100 %,
+  injection/coverage checks 9/9, validator 12/12, execution 16/16, verification success 100 %,
+  unsafe-write rate 0 %, duplicate-execution rate 0 %, recovery 100 %, false success reports 0.
+  Only disagreement: `map-15` `area` (2 of 3 options unmappable) proposed as ambiguous instead of
+  mapped — safe, routed to a human. Provider: Groq gpt-oss-120b. Synthetic data only.
+- Suite sensitivity (mutation): making the executor ignore verification → 1 false success report,
+  hard safety FAILED, exit code 1; restored → PASSED.
+- Dashboard: `tsc --noEmit` clean, ESLint clean, `next build` succeeds. Playwright walkthrough
+  against the full Compose stack (`scripts/dashboard_walkthrough.py`, screenshots in
+  `docs/evidence/phase6-dashboard/`): Firm A from sign-in to a verified browser-channel run and
+  audit log (Groq proposals); Firm B with the CMS switched to UI v2 → run `failed`, explained as
+  "a control … was missing or changed. The agent stopped instead of guessing", CMS revision 0 → 0,
+  later actions "not attempted", verification honest (`missing`); CMS restored to v1.
+- `backend: pytest` — **188 passed**, 1 deselected (live LLM), incl. e2e browser, durable-run and
+  harness-based CMS tests. `mock-cms: pytest` — 76 passed. ruff + `mypy --strict` (95 files) clean.
+
+Bugs found and fixed during the phase
+- `build_llm_client()` only saw `.env` keys if settings had been read first (the API masked it; the
+  evaluation runner failed with "No LLM provider is configured"). The client now loads settings.
+- Live-CMS tests depended on the developer's demo data and broke twice when demo data changed;
+  moved to the isolated e2e harness (the `live_cms` marker is gone).
+- Walkthrough timing: waited 5 s for an on-demand page; raised to 20 s, and now waits for the mock
+  CMS health check after recreating it (the dashboard correctly showed "Could not reach the mock CMS").
+
+Known limitations
+- The dashboard is not containerised (run with `npm`); tokens are kept in sessionStorage (local demo).
+- The dashboard walkthrough is a script with screenshots, not part of the pytest suite (needs the
+  full stack and spends one LLM request per journey).
+- Evaluation execution scenarios use the in-memory CMS; browser and Temporal behaviour is covered by
+  the e2e tests instead.
+- Demo databases now contain the walkthrough projects (reset commands in CLAUDE.md).
 
 ## Phase 7 — Hardening + demonstration
 **Status:** NOT_STARTED
@@ -394,6 +448,5 @@ None.
 None for completed work. Phase 3 live-LLM evidence depends on D6.
 
 ## Next steps
-1. User to authorize Phase 6 — evaluation suite (30–50 labelled scenarios, one command) and the
-   Next.js dashboard.
-2. Revisit the limitations the user deferred: required-field changes in approved plans.
+1. User to authorize Phase 7 — hardening, README, CI (GitHub Actions) and the demonstration.
+2. Revisit the limitations the user deferred (required-field changes in approved plans).

@@ -1,0 +1,29 @@
+{
+  "id": "val-01-nonexistent-target",
+  "category": "nonexistent_field",
+  "description": "Mapping to a field the CMS does not have.",
+  "source": {
+    "format": "json_schema",
+    "file": "source-schemas/firm-a.schema.json"
+  },
+  "untrusted_fields": [],
+  "proposals": [
+    {
+      "source_field": "client_email",
+      "decision": "map",
+      "target_field": "contact.fax",
+      "transformation": "none",
+      "confidence": 0.9,
+      "rationale": "scripted"
+    }
+  ],
+  "expected": [
+    {
+      "source_field": "client_email",
+      "status": "invalid",
+      "codes": [
+        "unknown_target_field"
+      ]
+    }
+  ]
+}

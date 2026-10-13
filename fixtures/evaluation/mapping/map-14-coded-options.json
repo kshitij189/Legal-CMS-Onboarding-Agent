@@ -1,0 +1,21 @@
+{
+  "id": "map-14-coded-options",
+  "category": "same_meaning_different_names",
+  "description": "Option codes whose meaning is only in the visible option text.",
+  "source": {
+    "format": "html_form",
+    "content": "<form><label for=\"c\">Client</label><input id=\"c\" name=\"client\" required><label for=\"m\">Matter</label><select id=\"m\" name=\"matter_code\" required><option value=\"F1\">Family matters</option><option value=\"W2\">Work dispute</option><option value=\"R3\">Buying or selling a home</option></select></form>"
+  },
+  "labels": [
+    {
+      "source_field": "client",
+      "expect": "map",
+      "target_field": "contact.full_name"
+    },
+    {
+      "source_field": "matter_code",
+      "expect": "map",
+      "target_field": "matter.practice_area"
+    }
+  ]
+}

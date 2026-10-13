@@ -1,0 +1,21 @@
+{
+  "id": "map-15-unmappable-options",
+  "category": "incompatible_types",
+  "description": "Enum with options the CMS vocabulary lacks (validator flags them).",
+  "source": {
+    "format": "json_schema",
+    "content": "{\n \"type\": \"object\",\n \"required\": [\n  \"name\"\n ],\n \"properties\": {\n  \"name\": {\n   \"type\": \"string\",\n   \"title\": \"Name\"\n  },\n  \"area\": {\n   \"type\": \"string\",\n   \"title\": \"Area of law\",\n   \"enum\": [\n    \"Family\",\n    \"Tax\",\n    \"Bankruptcy\"\n   ]\n  }\n }\n}"
+  },
+  "labels": [
+    {
+      "source_field": "name",
+      "expect": "map",
+      "target_field": "contact.full_name"
+    },
+    {
+      "source_field": "area",
+      "expect": "map",
+      "target_field": "matter.practice_area"
+    }
+  ]
+}
