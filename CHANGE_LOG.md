@@ -534,3 +534,45 @@ with another application (279 Flash Lite requests that day were not from this pr
 
 **Known issues / limitations**
 - Dashboard not containerised; walkthrough not part of pytest; demo DBs contain walkthrough data.
+
+
+---
+
+## Phase 7 — Hardening + demonstration (2026-10-13)
+
+**Changes**
+- `scripts/demo.py [--reset]`: narrated, repeatable demonstration against the Compose stack —
+  normal onboarding (browser channel), re-run, deliberate UI-drift failure and recovery,
+  authorization, schema change after approval, worker crash, duplicate request. Transcript:
+  `docs/evidence/phase7-demo.md`.
+- `backend/tests/integration/test_hardening.py`: secrets/tokens/keys never logged across a full
+  onboarding and a failed login; unexpected errors give a generic 500; wrong vs unknown login
+  responses identical.
+- `README.md` (architecture diagram, install, demo, sample firms, evaluation results, failure
+  scenarios) and `.github/workflows/ci.yml` (backend + mock CMS + e2e + Temporal + evaluation replay
+  + pip-audit; dashboard lint/tsc/build + npm audit of runtime dependencies).
+- `frontend/package.json`: `overrides.postcss ^8.5.30`.
+- CLAUDE.md: demo and CI commands, Alembic logging rule.
+
+**Decisions**
+- postcss fixed with an npm override instead of upgrading to Next 16 (breaking).
+- The `braces` advisories (dev-only, ESLint tooling) are documented, not forced.
+- CI audits only runtime npm dependencies; Python audits cover each full virtualenv.
+
+**Dependencies added** none to the projects (`pip-audit` is installed ad hoc locally and in CI).
+
+**Tests executed (actual results)**
+- Demo `--reset`: 8/8 checks PASS in 193 s (details in IMPLEMENTATION_PROGRESS.md).
+- `backend: pytest` — **191 passed**, 1 deselected (live LLM), 0 skipped — incl. Chromium e2e and Temporal durable runs. `mock-cms: pytest` — 76 passed. ruff check, ruff format
+  --check and `mypy --strict` clean in both packages.
+- `pip-audit` backend and mock CMS: no known vulnerabilities. `npm audit --omit=dev`: 0.
+- Frontend build, tsc, lint clean.
+
+**Bugs found and fixed**
+- Alembic `fileConfig()` disabled the app's existing loggers when migrations ran in-process; both
+  `alembic/env.py` now pass `disable_existing_loggers=False`.
+- Demo transcript called approved mapping items "changes"; relabelled after the run (counts unchanged).
+
+**Known issues / limitations**
+- 5 high npm advisories in dev-only `braces` (eslint-config-next tooling).
+- Live-LLM tests and the demo script are not run in CI.

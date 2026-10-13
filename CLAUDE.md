@@ -251,6 +251,18 @@ npx tsc --noEmit; npm run lint                   # checks
 backend\.venv\Scripts\python scripts\dashboard_walkthrough.py   # Playwright walkthrough + screenshots
 ```
 
+Demonstration (Phase 7; needs the full Compose stack, spends a few LLM requests; `--reset` wipes
+and reseeds the demo databases, transcript → `docs/evidence/phase7-demo.md`):
+
+```powershell
+backend\.venv\Scripts\python scripts\demo.py --reset
+```
+
+CI: `.github/workflows/ci.yml` (backend + mock CMS checks, e2e with Chromium and a Temporal dev
+server on 7234, evaluation replay, pip-audit; dashboard lint/tsc/build/npm audit). Alembic `env.py`
+must keep `fileConfig(..., disable_existing_loggers=False)`, otherwise in-process migrations
+silently disable the app's request logger.
+
 Mock CMS demo logins (synthetic): `<a|b|c>.<admin|integration|intake|staff>` with password
 `MOCK_CMS_SEED_PASSWORD` (default `demo-password`). OpenAPI docs: http://localhost:8100/docs.
 

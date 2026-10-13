@@ -9,7 +9,8 @@ from app.db import Base
 
 config = context.config
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # Keep loggers created before migrations (the app's) enabled when migrating in-process.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Tests pass an explicit URL through the Alembic config; otherwise use app settings.
 url = config.attributes.get("database_url") or get_settings().database_url

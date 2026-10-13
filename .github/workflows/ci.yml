@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend, mock CMS, e2e and evaluation
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: lcms
+          POSTGRES_PASSWORD: lcms_dev_password
+          POSTGRES_DB: lcms
+        ports: ["5434:5432"]
+        options: >-
+          --health-cmd "pg_isready -U lcms -d lcms"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      PGPASSWORD: lcms_dev_password
+      OTEL_TRACES_EXPORTER: none
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Create databases
+        run: psql -h localhost -p 5434 -U lcms -d lcms -f docker/postgres/init/01-create-databases.sql
+
+      - name: Start Temporal dev server (durable-run tests)
+        run: |
+          docker run -d --name temporal -p 7234:7233 temporalio/temporal:1.9.1 \
+            server start-dev --ip 0.0.0.0
+          for i in $(seq 1 60); do (echo > /dev/tcp/127.0.0.1/7234) 2>/dev/null && exit 0; sleep 1; done
+          echo "Temporal did not start" && docker logs temporal && exit 1
+
+      - name: Install mock CMS
+        working-directory: mock-cms
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -e ".[dev]" pip-audit
+
+      - name: Install backend and Chromium
+        working-directory: backend
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -e ".[dev]" pip-audit
+          .venv/bin/python -m playwright install --with-deps chromium
+
+      - name: Mock CMS — lint, types, tests
+        working-directory: mock-cms
+        run: |
+          .venv/bin/ruff check .
+          .venv/bin/ruff format --check .
+          .venv/bin/mypy app tests
+          .venv/bin/pytest -q
+
+      - name: Backend — lint and types
+        working-directory: backend
+        run: |
+          .venv/bin/ruff check .
+          .venv/bin/ruff format --check .
+          .venv/bin/mypy app tests
+
+      - name: Backend — tests (unit, integration, browser e2e, durable runs)
+        working-directory: backend
+        run: .venv/bin/pytest -q -rs
+
+      - name: Evaluation suite (replay)
+        run: backend/.venv/bin/python scripts/run_evaluations.py --report-dir "$RUNNER_TEMP/evaluation"
+
+      - name: Upload evaluation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-report
+          path: ${{ runner.temp }}/evaluation
+
+      - name: Dependency audit (Python)
+        run: |
+          backend/.venv/bin/pip-audit --skip-editable
+          mock-cms/.venv/bin/pip-audit --skip-editable
+
+  frontend:
+    name: Dashboard
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+      - name: Dependency audit (runtime dependencies)
+        run: npm audit --omit=dev --audit-level=high

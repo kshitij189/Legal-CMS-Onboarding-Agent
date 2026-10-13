@@ -6,8 +6,8 @@ A phase is `COMPLETED` only when its acceptance criteria are met and the evidenc
 **Repository inspection (2026-10-12):** the repository was empty — no source code, tests, or
 configuration existed. No phase has verifiable prior work.
 
-**Last completed phase:** Phase 6 — Evaluation + dashboard (2026-10-13).
-**Next phase to implement:** Phase 7 — Hardening + demonstration (awaiting user authorization).
+**Last completed phase:** Phase 7 — Hardening + demonstration (2026-10-13). All seven phases done.
+**Next:** the deferred limitations review (awaiting user authorization).
 
 | # | Phase | Status |
 |---|---|---|
@@ -17,7 +17,7 @@ configuration existed. No phase has verifiable prior work.
 | 4 | Playwright execution | COMPLETED |
 | 5 | Durable orchestration (Temporal) | COMPLETED |
 | 6 | Evaluation + dashboard | COMPLETED |
-| 7 | Hardening + demonstration | NOT_STARTED |
+| 7 | Hardening + demonstration | COMPLETED |
 
 ---
 
@@ -413,7 +413,7 @@ Known limitations
 - Demo databases now contain the walkthrough projects (reset commands in CLAUDE.md).
 
 ## Phase 7 — Hardening + demonstration
-**Status:** NOT_STARTED
+**Status:** COMPLETED (2026-10-13) — CI result pending on GitHub (see below)
 **Objective:** Test unauthorized actions, UI changes, timeouts, duplicates, schema changes, untrusted input;
 produce README and demo.
 **Depends on:** Phase 6.
@@ -421,6 +421,51 @@ produce README and demo.
 Acceptance criteria: repeatable demo of normal onboarding + at least one deliberate failure with safe
 recovery; README with architecture, install, firms, dataset, results, failure scenarios.
 Required evidence: demo script/recording; CI green.
+
+Delivered
+- [x] `scripts/demo.py [--reset]` — narrated demo against the Compose stack, transcript in
+      `docs/evidence/phase7-demo.md`: normal onboarding (browser channel), re-run, deliberate UI-drift
+      failure with safe recovery, authorization, schema change after approval, worker crash, duplicate
+      request. Always restores the mock CMS UI to v1.
+- [x] Hardening tests `backend/tests/integration/test_hardening.py`: no password, bearer token,
+      LLM key or connector password in any log line across a full onboarding plus a failed login;
+      unexpected errors return a generic 500; wrong and unknown logins are indistinguishable.
+      (Unauthorized actions, UI changes, timeouts, duplicates, schema changes and untrusted input were
+      already covered by Phases 3–6 tests and the evaluation suite.)
+- [x] Dependency audit: `pip-audit` (backend, mock CMS) — no known vulnerabilities;
+      `npm audit --omit=dev` — 0 after overriding postcss to ^8.5.30.
+- [x] `README.md` — architecture diagram, components, safety guarantees, install, demo, sample firms,
+      evaluation dataset and results, failure scenarios, development, layout.
+- [x] `.github/workflows/ci.yml` — backend + mock CMS (ruff, format, mypy, pytest incl. Chromium e2e
+      and Temporal durable runs), evaluation replay (report uploaded), pip-audit; dashboard (lint, tsc,
+      build, npm audit of runtime deps).
+
+Validation evidence (2026-10-13)
+- Demo (`--reset`, Groq proposals): all 8 checks PASS in 193 s. Firm A run verified 8/8 (CMS revision
+  0 → 8); re-run `already_applied` 8, revision unchanged; Firm C under UI v2 → `failed` /
+  `ui_drift`, 1 failed + 9 skipped, revision 0 → 0; UI restored, same version → succeeded 10/10;
+  cross-firm 404, specialist 403 `missing_permission`; stale approval 409 `schema_changed`; Firm B
+  worker killed after 2/10 steps → resumed, succeeded 10/10, one attempt per step; same
+  Idempotency-Key → 202 then 200, same run.
+- `backend: pytest` — **191 passed**, 1 deselected (live LLM), 0 skipped — incl. Chromium e2e and Temporal durable runs. `mock-cms: pytest` — 76 passed. ruff check + format and
+  `mypy --strict` clean in both packages.
+- Frontend: `npm run build`, `tsc --noEmit`, ESLint clean after the postcss override.
+
+Bugs found and fixed during the phase
+- **Request logs silently disabled after in-process migrations.** Alembic's `fileConfig()` defaults to
+  `disable_existing_loggers=True`, so running migrations inside a process (test fixtures, evaluation
+  runner) disabled the app's `app.request` logger. Found by the log-secrets test capturing nothing;
+  fixed in both `alembic/env.py` files.
+- postcss 8.4.31 (pinned by Next 15) had published advisories → npm override.
+- Demo transcript labelled approved mapping items as "changes" (Firm C: 9 items, 10 plan steps);
+  relabelled in the script and transcript (counts unchanged).
+
+Known limitations
+- `npm audit` (including dev dependencies) reports 5 high advisories, all in `braces` pulled in by
+  the ESLint tooling of `eslint-config-next`; dev-only, not shipped, no fix without a breaking upgrade.
+- CI runs the browser and Temporal tests but not the live-LLM tests (no keys in CI) or the demo
+  script (needs the full Compose stack).
+- Demo `--reset` wipes the local demo databases by design.
 
 ---
 
@@ -448,5 +493,5 @@ None.
 None for completed work. Phase 3 live-LLM evidence depends on D6.
 
 ## Next steps
-1. User to authorize Phase 7 — hardening, README, CI (GitHub Actions) and the demonstration.
-2. Revisit the limitations the user deferred (required-field changes in approved plans).
+1. Confirm the first CI run on GitHub Actions is green.
+2. Revisit the limitations of all phases, which the user deferred to the end.
