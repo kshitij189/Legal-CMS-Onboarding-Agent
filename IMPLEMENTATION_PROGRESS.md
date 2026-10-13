@@ -450,6 +450,10 @@ Validation evidence (2026-10-13)
 - `backend: pytest` — **191 passed**, 1 deselected (live LLM), 0 skipped — incl. Chromium e2e and Temporal durable runs. `mock-cms: pytest` — 76 passed. ruff check + format and
   `mypy --strict` clean in both packages.
 - Frontend: `npm run build`, `tsc --noEmit`, ESLint clean after the postcss override.
+- **CI green** on GitHub Actions run 38440193985 (commit e9c30de): both jobs and every step
+  succeeded — backend/mock CMS lint, types and tests (incl. e2e), evaluation replay, pip-audit,
+  dashboard lint/tsc/build, npm audit. Step logs need GitHub auth, so per-test skip counts in CI
+  were not inspected.
 
 Bugs found and fixed during the phase
 - **Request logs silently disabled after in-process migrations.** Alembic's `fileConfig()` defaults to
