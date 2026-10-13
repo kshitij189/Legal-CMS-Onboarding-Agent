@@ -27,7 +27,7 @@ router = APIRouter(prefix="/api/v1/onboarding-projects/{project_id}", tags=["map
 
 
 def get_llm_client() -> LLMClient:
-    """Overridable in tests; production builds the Gemini -> Groq fallback chain."""
+    """Overridable in tests; production builds the Groq -> Gemini fallback chain."""
     return build_llm_client()
 
 

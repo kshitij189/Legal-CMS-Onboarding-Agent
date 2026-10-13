@@ -142,7 +142,7 @@ live in a controlled extension structure, never discarded. No pairwise source→
 | Layer | Choice |
 |---|---|
 | Language | Python 3.13 (3.14 is installed but avoided for wheel availability) |
-| LLM | Gemini via the Google Python SDK (`google-genai`); Groq as the second provider — see *Outstanding decisions* |
+| LLM | Groq (`openai/gpt-oss-120b`, OpenAI-compatible API over httpx) primary; Gemini via `google-genai` (`gemini-3.5-flash-lite`) as backup — decision D1, revised 2026-10-13 |
 | Browser automation | Playwright for Python |
 | Backend / mock CMS | FastAPI (+ Jinja2 server-rendered HTML for the mock CMS UI) |
 | Validation | Pydantic v2 + JSON Schema |
@@ -159,9 +159,9 @@ live in a controlled extension structure, never discarded. No pairwise source→
 No vector DB, no commercial browser-agent framework, no extra queue/cache, no ORMs or web frameworks
 beyond the above. Every new dependency must be justified in `CHANGE_LOG.md`.
 
-Decision D1 (confirmed by the user): the blueprint's "Claude" means "the LLM". Gemini (`google-genai`)
-is the primary provider, Groq an optional fallback, behind the provider-neutral
-`backend/app/agent/llm_client.py`. Decision D4: Temporal runs in this project's own Compose on
+Decision D1 (revised by the user 2026-10-13): the blueprint's "Claude" means "the LLM". Groq is the
+primary provider and Gemini the backup, behind the provider-neutral
+`backend/app/agent/llm_client.py`; see `docs/evidence/README.md` for the comparison behind it. Decision D4: Temporal runs in this project's own Compose on
 separate host ports.
 
 ## 6. Repository structure
@@ -281,13 +281,17 @@ Keep this section current as phases add commands.
 
 ### As implemented (Phase 3)
 - `backend/app/agent/llm_client.py`: forced single tool call, temperature 0, args validated by
-  Pydantic; provider chain from `LLM_PROVIDERS` (default `gemini,groq`), models from `GEMINI_MODEL`
-  (default `gemini-3.8-flash`) / `GROQ_MODEL` (default `openai/gpt-oss-120b`), `LLM_TIMEOUT_SECONDS`.
+  Pydantic; provider chain from `LLM_PROVIDERS` (default `groq,gemini`), models from `GROQ_MODEL`
+  (default `openai/gpt-oss-120b`) / `GEMINI_MODEL` (default `gemini-3.5-flash-lite`),
+  `LLM_TIMEOUT_SECONDS`. Free tiers: Groq 1,000 req/day but 8K tokens/min (~2 proposals/min);
+  Gemini Flash Lite 500 req/day. The Gemini key's project ("voice-agents") shares quota with
+  another app.
   Errors are classified (`quota`, `transient`, `configuration`, `invalid_output`, `provider`);
   a failing provider falls through to the next and the fallback is recorded.
 - Gemini rejects `additionalProperties`, `default`, `min/maxLength`, `min/maxItems` in function
   declarations — they are stripped for Gemini only; Pydantic still enforces them on the result.
-  The key's free tier allows ~20 requests/day/model; Gemini latency can exceed 2 minutes.
+  `gemini-3.8-flash` (20 req/day, 2–4 min latency) proved impractical; compare models with the
+  live test before changing defaults and keep the evidence in `docs/evidence/`.
 - `agent/tool_registry.py` is the allow-list; it holds only `propose_field_mappings`
   (`writes=False`). Do not register write tools for the model.
 - `agent/prompts.py`: versioned (`PROMPT_VERSION`); untrusted schema text only inside

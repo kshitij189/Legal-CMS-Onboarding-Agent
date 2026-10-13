@@ -298,3 +298,16 @@ def test_groq_does_not_wait_for_long_rate_limits() -> None:
     with pytest.raises(LLMError) as exc:
         client.call_tool("s", "u", PROPOSE_FIELD_MAPPINGS)
     assert exc.value.category == "quota" and waits == []
+
+
+def test_default_provider_order_is_groq_then_gemini(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GROQ_API_KEY", "k")
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    monkeypatch.delenv("LLM_PROVIDERS", raising=False)
+    monkeypatch.delenv("GEMINI_MODEL", raising=False)
+    monkeypatch.delenv("GROQ_MODEL", raising=False)
+    client = build_llm_client()
+    assert client.provider == "groq+gemini"
+    assert client.model == "openai/gpt-oss-120b"
+    assert isinstance(client, FallbackLLMClient)
+    assert [c.model for c in client._clients] == ["openai/gpt-oss-120b", "gemini-3.5-flash-lite"]

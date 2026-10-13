@@ -1,0 +1,831 @@
+{
+  "run_at": "2026-10-13T07:26:30+00:00",
+  "prompt_version": "mapping-v1",
+  "provider_chain": "gemini+groq",
+  "firms": {
+    "firm-a": {
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "fallbacks": [],
+      "latency_ms": 2859,
+      "input_tokens": 2483,
+      "output_tokens": 769,
+      "untrusted_fields": [],
+      "validation_counts": {
+        "valid": 8,
+        "needs_review": 0,
+        "invalid": 2
+      },
+      "invalid": [
+        {
+          "source_field": "callback_time",
+          "issues": [
+            "value_map_requires_enum_target"
+          ]
+        },
+        {
+          "source_field": "consent_to_contact",
+          "issues": [
+            "custom_field_creation",
+            "invalid_custom_field",
+            "invalid_custom_field",
+            "invalid_custom_field"
+          ]
+        }
+      ],
+      "coverage_gaps": [],
+      "unproposed_source_fields": [],
+      "agreement_with_labels": {
+        "correct_decisions": 9,
+        "total_fields": 10,
+        "clearly_mappable_correct": 8,
+        "clearly_mappable_total": 8,
+        "rows": [
+          {
+            "source_field": "client_full_name",
+            "expected": "map -> contact.full_name",
+            "proposed": "map -> contact.full_name",
+            "correct": true
+          },
+          {
+            "source_field": "client_mobile",
+            "expected": "map -> contact.phone_number",
+            "proposed": "map -> contact.phone_number",
+            "correct": true
+          },
+          {
+            "source_field": "client_email",
+            "expected": "map -> contact.email",
+            "proposed": "map -> contact.email",
+            "correct": true
+          },
+          {
+            "source_field": "matter_type",
+            "expected": "map -> matter.practice_area",
+            "proposed": "map -> matter.practice_area",
+            "correct": true
+          },
+          {
+            "source_field": "opposing_party",
+            "expected": "map -> matter.opposing_party",
+            "proposed": "map -> matter.opposing_party",
+            "correct": true
+          },
+          {
+            "source_field": "jurisdiction",
+            "expected": "map -> matter.jurisdiction",
+            "proposed": "map -> matter.jurisdiction",
+            "correct": true
+          },
+          {
+            "source_field": "callback_time",
+            "expected": "map -> contact.callback_preference",
+            "proposed": "map -> contact.callback_preference",
+            "correct": true
+          },
+          {
+            "source_field": "matter_details",
+            "expected": "map -> matter.summary",
+            "proposed": "map -> matter.summary",
+            "correct": true
+          },
+          {
+            "source_field": "consent_to_contact",
+            "expected": "no_target",
+            "proposed": "requires_custom_field",
+            "correct": false
+          },
+          {
+            "source_field": "attachments",
+            "expected": "unsupported",
+            "proposed": "unsupported",
+            "correct": true
+          }
+        ]
+      },
+      "proposals": [
+        {
+          "source_field": "client_full_name",
+          "decision": "map",
+          "target_field": "contact.full_name",
+          "transformation": "trim",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "client_full_name matches contact.full_name because both represent the prospective client's full name.",
+          "open_questions": []
+        },
+        {
+          "source_field": "client_mobile",
+          "decision": "map",
+          "target_field": "contact.phone_number",
+          "transformation": "normalize_phone",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "client_mobile matches contact.phone_number because both represent the primary phone number.",
+          "open_questions": []
+        },
+        {
+          "source_field": "client_email",
+          "decision": "map",
+          "target_field": "contact.email",
+          "transformation": "lowercase",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "client_email matches contact.email because both represent the primary email address.",
+          "open_questions": []
+        },
+        {
+          "source_field": "matter_type",
+          "decision": "map",
+          "target_field": "matter.practice_area",
+          "transformation": "none",
+          "value_map": [
+            {
+              "source_value": "Family",
+              "target_value": "family_law"
+            },
+            {
+              "source_value": "Personal Injury",
+              "target_value": "personal_injury"
+            },
+            {
+              "source_value": "Employment",
+              "target_value": "employment"
+            },
+            {
+              "source_value": "Immigration",
+              "target_value": "immigration"
+            }
+          ],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "matter_type matches matter.practice_area as an enum mapping the legal category options to the corresponding practice areas.",
+          "open_questions": []
+        },
+        {
+          "source_field": "opposing_party",
+          "decision": "map",
+          "target_field": "matter.opposing_party",
+          "transformation": "trim",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "opposing_party matches matter.opposing_party because both represent the name of the opposing party.",
+          "open_questions": []
+        },
+        {
+          "source_field": "jurisdiction",
+          "decision": "map",
+          "target_field": "matter.jurisdiction",
+          "transformation": "trim",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "jurisdiction matches matter.jurisdiction because both represent the court or region where the matter arises.",
+          "open_questions": []
+        },
+        {
+          "source_field": "callback_time",
+          "decision": "map",
+          "target_field": "contact.callback_preference",
+          "transformation": "none",
+          "value_map": [
+            {
+              "source_value": "Morning",
+              "target_value": "Morning"
+            },
+            {
+              "source_value": "Afternoon",
+              "target_value": "Afternoon"
+            },
+            {
+              "source_value": "Evening",
+              "target_value": "Evening"
+            }
+          ],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "callback_time matches contact.callback_preference because both represent the preferred time window for a callback.",
+          "open_questions": []
+        },
+        {
+          "source_field": "matter_details",
+          "decision": "map",
+          "target_field": "matter.summary",
+          "transformation": "trim",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "matter_details matches matter.summary because both represent a free-text description of the legal situation.",
+          "open_questions": []
+        },
+        {
+          "source_field": "consent_to_contact",
+          "decision": "requires_custom_field",
+          "target_field": "",
+          "transformation": "none",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "There is no target field representing consent to contact, so a custom boolean field is required on the contact entity.",
+          "open_questions": []
+        },
+        {
+          "source_field": "attachments",
+          "decision": "unsupported",
+          "target_field": "",
+          "transformation": "none",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "The source data type is unsupported.",
+          "open_questions": []
+        }
+      ]
+    },
+    "firm-b": {
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "fallbacks": [],
+      "latency_ms": 2521,
+      "input_tokens": 2495,
+      "output_tokens": 747,
+      "untrusted_fields": [],
+      "validation_counts": {
+        "valid": 8,
+        "needs_review": 0,
+        "invalid": 2
+      },
+      "invalid": [
+        {
+          "source_field": "incident_date",
+          "issues": [
+            "custom_field_creation",
+            "invalid_custom_field",
+            "invalid_custom_field",
+            "invalid_custom_field"
+          ]
+        },
+        {
+          "source_field": "referral_source",
+          "issues": [
+            "custom_field_creation",
+            "invalid_custom_field",
+            "invalid_custom_field",
+            "invalid_custom_field"
+          ]
+        }
+      ],
+      "coverage_gaps": [],
+      "unproposed_source_fields": [],
+      "agreement_with_labels": {
+        "correct_decisions": 8,
+        "total_fields": 10,
+        "clearly_mappable_correct": 8,
+        "clearly_mappable_total": 8,
+        "rows": [
+          {
+            "source_field": "contact_name",
+            "expected": "map -> contact.full_name",
+            "proposed": "map -> contact.full_name",
+            "correct": true
+          },
+          {
+            "source_field": "contact_email",
+            "expected": "map -> contact.email",
+            "proposed": "map -> contact.email",
+            "correct": true
+          },
+          {
+            "source_field": "contact_phone",
+            "expected": "map -> contact.phone_number",
+            "proposed": "map -> contact.phone_number",
+            "correct": true
+          },
+          {
+            "source_field": "case_category",
+            "expected": "map -> matter.practice_area",
+            "proposed": "map -> matter.practice_area",
+            "correct": true
+          },
+          {
+            "source_field": "court_jurisdiction",
+            "expected": "map -> matter.jurisdiction",
+            "proposed": "map -> matter.jurisdiction",
+            "correct": true
+          },
+          {
+            "source_field": "adverse_party",
+            "expected": "map -> matter.opposing_party",
+            "proposed": "map -> matter.opposing_party",
+            "correct": true
+          },
+          {
+            "source_field": "incident_date",
+            "expected": "no_target",
+            "proposed": "requires_custom_field",
+            "correct": false
+          },
+          {
+            "source_field": "case_summary",
+            "expected": "map -> matter.summary",
+            "proposed": "map -> matter.summary",
+            "correct": true
+          },
+          {
+            "source_field": "preferred_contact",
+            "expected": "map -> contact.preferred_contact_method",
+            "proposed": "map -> contact.preferred_contact_method",
+            "correct": true
+          },
+          {
+            "source_field": "referral_source",
+            "expected": "no_target",
+            "proposed": "requires_custom_field",
+            "correct": false
+          }
+        ]
+      },
+      "proposals": [
+        {
+          "source_field": "contact_name",
+          "decision": "map",
+          "target_field": "contact.full_name",
+          "transformation": "trim",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "Source field contact_name matches target field contact.full_name which holds the prospective client's full legal name.",
+          "open_questions": []
+        },
+        {
+          "source_field": "contact_email",
+          "decision": "map",
+          "target_field": "contact.email",
+          "transformation": "lowercase",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "Source field contact_email matches target field contact.email for primary email address.",
+          "open_questions": []
+        },
+        {
+          "source_field": "contact_phone",
+          "decision": "map",
+          "target_field": "contact.phone_number",
+          "transformation": "normalize_phone",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "Source field contact_phone matches target field contact.phone_number for primary phone number.",
+          "open_questions": []
+        },
+        {
+          "source_field": "case_category",
+          "decision": "map",
+          "target_field": "matter.practice_area",
+          "transformation": "none",
+          "value_map": [
+            {
+              "source_value": "Family Law",
+              "target_value": "family_law"
+            },
+            {
+              "source_value": "Employment Law",
+              "target_value": "employment"
+            },
+            {
+              "source_value": "Real Estate",
+              "target_value": "real_estate"
+            },
+            {
+              "source_value": "Business",
+              "target_value": "business"
+            }
+          ],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "Source field case_category maps to target field matter.practice_area with matching enum options.",
+          "open_questions": []
+        },
+        {
+          "source_field": "court_jurisdiction",
+          "decision": "map",
+          "target_field": "matter.jurisdiction",
+          "transformation": "trim",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "Source field court_jurisdiction matches target field matter.jurisdiction for court or region where the matter arises.",
+          "open_questions": []
+        },
+        {
+          "source_field": "adverse_party",
+          "decision": "map",
+          "target_field": "matter.opposing_party",
+          "transformation": "trim",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "Source field adverse_party matches target field matter.opposing_party for name of the opposing party.",
+          "open_questions": []
+        },
+        {
+          "source_field": "incident_date",
+          "decision": "requires_custom_field",
+          "target_field": "",
+          "transformation": "none",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "No target field captures the date of incident.",
+          "open_questions": []
+        },
+        {
+          "source_field": "case_summary",
+          "decision": "map",
+          "target_field": "matter.summary",
+          "transformation": "none",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "Source field case_summary matches target field matter.summary for free-text description.",
+          "open_questions": []
+        },
+        {
+          "source_field": "preferred_contact",
+          "decision": "map",
+          "target_field": "contact.preferred_contact_method",
+          "transformation": "none",
+          "value_map": [
+            {
+              "source_value": "Email",
+              "target_value": "email"
+            },
+            {
+              "source_value": "Phone",
+              "target_value": "phone"
+            },
+            {
+              "source_value": "Text message",
+              "target_value": "sms"
+            }
+          ],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 0.9,
+          "rationale": "Source field preferred_contact maps to target field contact.preferred_contact_method with matching concepts.",
+          "open_questions": []
+        },
+        {
+          "source_field": "referral_source",
+          "decision": "requires_custom_field",
+          "target_field": "",
+          "transformation": "none",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "No target field captures the referral source or how the client heard about the firm.",
+          "open_questions": []
+        }
+      ]
+    },
+    "firm-c": {
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "fallbacks": [],
+      "latency_ms": 2552,
+      "input_tokens": 2538,
+      "output_tokens": 679,
+      "untrusted_fields": [
+        "notes"
+      ],
+      "validation_counts": {
+        "valid": 6,
+        "needs_review": 3,
+        "invalid": 1
+      },
+      "invalid": [
+        {
+          "source_field": "urgent",
+          "issues": [
+            "custom_field_creation",
+            "invalid_custom_field",
+            "invalid_custom_field",
+            "invalid_custom_field"
+          ]
+        }
+      ],
+      "coverage_gaps": [
+        "matter.practice_area"
+      ],
+      "unproposed_source_fields": [],
+      "agreement_with_labels": {
+        "correct_decisions": 6,
+        "total_fields": 10,
+        "clearly_mappable_correct": 6,
+        "clearly_mappable_total": 7,
+        "rows": [
+          {
+            "source_field": "pc_name",
+            "expected": "map -> contact.full_name",
+            "proposed": "map -> contact.full_name",
+            "correct": true
+          },
+          {
+            "source_field": "pc_tel",
+            "expected": "map -> contact.phone_number",
+            "proposed": "map -> contact.phone_number",
+            "correct": true
+          },
+          {
+            "source_field": "pc_mail",
+            "expected": "map -> contact.email",
+            "proposed": "map -> contact.email",
+            "correct": true
+          },
+          {
+            "source_field": "area_of_law",
+            "expected": "map -> matter.practice_area",
+            "proposed": "ambiguous",
+            "correct": false
+          },
+          {
+            "source_field": "other_side",
+            "expected": "map -> matter.opposing_party",
+            "proposed": "map -> matter.opposing_party",
+            "correct": true
+          },
+          {
+            "source_field": "venue",
+            "expected": "map -> matter.jurisdiction",
+            "proposed": "map -> matter.jurisdiction",
+            "correct": true
+          },
+          {
+            "source_field": "review_state",
+            "expected": "requires_custom_field",
+            "proposed": "ambiguous",
+            "correct": false
+          },
+          {
+            "source_field": "call_window",
+            "expected": "map -> contact.callback_preference",
+            "proposed": "map -> contact.callback_preference",
+            "correct": true
+          },
+          {
+            "source_field": "notes",
+            "expected": "ambiguous",
+            "proposed": "map -> matter.summary",
+            "correct": false
+          },
+          {
+            "source_field": "urgent",
+            "expected": "no_target",
+            "proposed": "requires_custom_field",
+            "correct": false
+          }
+        ]
+      },
+      "proposals": [
+        {
+          "source_field": "pc_name",
+          "decision": "map",
+          "target_field": "contact.full_name",
+          "transformation": "trim",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "pc_name maps directly to contact.full_name representing the prospective client's full legal name.",
+          "open_questions": []
+        },
+        {
+          "source_field": "pc_tel",
+          "decision": "map",
+          "target_field": "contact.phone_number",
+          "transformation": "normalize_phone",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "pc_tel maps directly to contact.phone_number representing the primary phone number.",
+          "open_questions": []
+        },
+        {
+          "source_field": "pc_mail",
+          "decision": "map",
+          "target_field": "contact.email",
+          "transformation": "lowercase",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "pc_mail maps directly to contact.email representing the primary email address.",
+          "open_questions": []
+        },
+        {
+          "source_field": "area_of_law",
+          "decision": "ambiguous",
+          "target_field": "",
+          "transformation": "none",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 0.8,
+          "rationale": "area_of_law represents category of legal matter, but target enum options differ in naming convention and granularity.",
+          "open_questions": [
+            "Divorce & Custody could map to family_law, Workplace Disputes to employment, Visas & Immigration to immigration, Wills & Estates to estate_planning, but let's confirm these enum mappings."
+          ]
+        },
+        {
+          "source_field": "other_side",
+          "decision": "map",
+          "target_field": "matter.opposing_party",
+          "transformation": "trim",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "other_side maps directly to matter.opposing_party representing the name of the opposing party.",
+          "open_questions": []
+        },
+        {
+          "source_field": "venue",
+          "decision": "map",
+          "target_field": "matter.jurisdiction",
+          "transformation": "trim",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "venue maps directly to matter.jurisdiction representing court or region where the matter arises.",
+          "open_questions": []
+        },
+        {
+          "source_field": "review_state",
+          "decision": "ambiguous",
+          "target_field": "",
+          "transformation": "none",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 0.8,
+          "rationale": "review_state tracks intake review status but uses incompatible options.",
+          "open_questions": [
+            "review_state values (pending, reviewed, escalated) do not map directly to target intake_status enum values (new, under_review, accepted, declined)."
+          ]
+        },
+        {
+          "source_field": "call_window",
+          "decision": "map",
+          "target_field": "contact.callback_preference",
+          "transformation": "trim",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "call_window maps directly to contact.callback_preference representing preferred time window for a callback.",
+          "open_questions": []
+        },
+        {
+          "source_field": "notes",
+          "decision": "map",
+          "target_field": "matter.summary",
+          "transformation": "trim",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "notes maps directly to matter.summary representing free-text description. Instructions inside the field text are ignored per security policy.",
+          "open_questions": []
+        },
+        {
+          "source_field": "urgent",
+          "decision": "requires_custom_field",
+          "target_field": "",
+          "transformation": "none",
+          "value_map": [],
+          "candidates": [],
+          "custom_field_entity": "",
+          "custom_field_name": "",
+          "custom_field_data_type": "",
+          "custom_field_options": [],
+          "confidence": 1.0,
+          "rationale": "No target field fits whether a case is urgent; creating a custom boolean field on matter.",
+          "open_questions": []
+        }
+      ]
+    }
+  }
+}

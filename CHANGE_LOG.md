@@ -305,3 +305,33 @@ opentelemetry-api / -sdk / -exporter-otlp-proto-http 1.45.1, opentelemetry-instr
 - Gemini free tier quota (~20/day/model) and very high latency; requests often fall back to Groq.
 - Proposal generation runs synchronously within the HTTP request (until Phase 5).
 - Approved custom fields and mappings are not applied to any CMS yet (Phase 4).
+
+### 2026-10-13 — Phase 3 follow-up: LLM provider comparison; Groq primary (decision D1 revised)
+
+**Context.** The user asked why the Gemini model with the highest daily quota was not used. The
+default `gemini-3.8-flash` had been taken from the API's own deprecation message, not chosen by
+quota. The user supplied the project's AI Studio limits: 3.8/3.7/3.6 Flash 5 RPM / 20 RPD;
+3.5 Flash Lite 15 RPM / 500 RPD (all 250K TPM). Groq's response headers showed 1,000 req/day and
+8K tokens/min for `openai/gpt-oss-120b`.
+
+**Measured (live, same prompt `mapping-v1`, firms A–C):**
+- Gemini 3.5 Flash Lite: ~2.5 s per firm; 22/23 clearly mappable; 5 invalid proposals (4
+  `requires_custom_field` without name/entity/type; 1 value map on a text target) — all rejected by
+  the validator; 23/30 agreement.
+- Gemini 3.8 Flash: 171–212 s; 0 invalid; 16/20 agreement on the two firms it answered.
+- Groq gpt-oss-120b: ~4–20 s; 0 invalid; 26/30 agreement; 23/23 clearly mappable.
+
+**Decision (user-approved).** `LLM_PROVIDERS` default `groq,gemini`; `GEMINI_MODEL` default
+`gemini-3.5-flash-lite` (backup must be available: high quota, low latency). Rationale and data in
+`docs/evidence/README.md`.
+
+**Changed.** `app/agent/llm_client.py` defaults and docstrings; `app/api/mappings.py` docstring;
+new unit test for the default order; `.env.example` (`LLM_PROVIDERS`, `GROQ_MODEL`, `GEMINI_MODEL`,
+`LLM_TIMEOUT_SECONDS`); CLAUDE.md stack table and LLM rules; evidence files renamed per model plus
+`docs/evidence/README.md`.
+
+**Tests.** `backend: pytest` — 142 passed, 1 deselected; ruff and mypy clean. Live run with the new
+defaults: Groq for all three firms, no fallback, 0 invalid, 26/30 agreement.
+
+**Notes.** The Gemini key belongs to the Google Cloud project "voice-agents", whose quota is shared
+with another application (279 Flash Lite requests that day were not from this project).

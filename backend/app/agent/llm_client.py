@@ -1,4 +1,4 @@
-"""Provider-neutral LLM client (decision D1): Gemini primary, Groq fallback.
+"""Provider-neutral LLM client (decision D1, revised 2026-10-13): Groq primary, Gemini fallback.
 
 The only capability exposed is a *forced structured tool call*: the model must answer by calling one
 declared tool whose arguments are a Pydantic model. Free text is never accepted as output, and the
@@ -270,16 +270,21 @@ class FallbackLLMClient:
 
 
 def build_llm_client() -> LLMClient:
-    """Provider order from LLM_PROVIDERS (default "gemini,groq"); providers without keys skipped."""
+    """Provider order from LLM_PROVIDERS (default "groq,gemini"); providers without keys skipped.
+
+    Defaults chosen from the 2026-10-13 live comparison (docs/evidence/): Groq gpt-oss-120b was
+    the most accurate and fast; Gemini 3.5 Flash Lite is the backup because its free-tier quota
+    (500/day) and ~3 s latency make it available when Groq is rate limited.
+    """
     timeout = float(os.environ.get("LLM_TIMEOUT_SECONDS", "90"))
     clients: list[LLMClient] = []
-    for name in os.environ.get("LLM_PROVIDERS", "gemini,groq").split(","):
+    for name in os.environ.get("LLM_PROVIDERS", "groq,gemini").split(","):
         name = name.strip().lower()
         if name == "gemini" and os.environ.get("GEMINI_API_KEY"):
             clients.append(
                 GeminiClient(
                     os.environ["GEMINI_API_KEY"],
-                    os.environ.get("GEMINI_MODEL", "gemini-3.8-flash"),
+                    os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite"),
                     timeout,
                 )
             )

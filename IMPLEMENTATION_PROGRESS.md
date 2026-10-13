@@ -198,7 +198,8 @@ Validation evidence (2026-10-13)
   404; DB immutability triggers.
 - Mutation check: allowing approval of invalid proposals, skipping the schema-drift check, and
   downgrading unknown-target errors → each caught by tests; restored → all pass.
-- **Live LLM run** (`docs/evidence/phase3-live-llm-run.json`, 2026-10-13 07:15 UTC, timeout 240 s):
+- **Live LLM run, Gemini 3.8 Flash primary** (`docs/evidence/phase3-live-llm-run-gemini-3.8-flash.json`,
+  2026-10-13 07:15 UTC, timeout 240 s):
   | Firm | Provider | Latency | Validation (valid/review/invalid) | Agreement with labels | Clearly mappable |
   |---|---|---|---|---|---|
   | A | gemini-3.8-flash | 171 s | 9 / 1 / 0 | 9/10 | 8/8 |
@@ -212,10 +213,19 @@ Validation evidence (2026-10-13)
   Earlier runs the same day: Groq-only (Gemini 400 → fixed by stripping unsupported schema
   keywords; Gemini quota) gave A 9/10, B 10/10, C 7/10. Synthetic data; not proof of real-world
   accuracy.
+- **Model comparison and default change (2026-10-13 follow-up):** Gemini 3.5 Flash Lite (500
+  req/day) — ~2.5 s, 22/23 clearly mappable, 5 invalid proposals (4 custom-field proposals missing
+  name/entity/type, 1 value map on a text field), all rejected by the validator. Groq gpt-oss-120b
+  — 23/23, 0 invalid, 26/30 agreement. The user chose Groq primary / Gemini Flash Lite backup.
+  Final run with the new defaults (`docs/evidence/phase3-live-llm-run.json`): Groq for all firms,
+  no fallback, A 9/10, B 10/10, C 7/10, 0 invalid; firm C waited out a short Groq rate limit
+  (19.7 s). `backend: pytest` — 142 passed.
 
 Known limitations
-- Gemini free tier: ~20 requests/day/model and 2–4 minute latencies observed; with the default
-  90 s timeout requests will often fall back to Groq. Set `LLM_TIMEOUT_SECONDS` higher to wait.
+- Groq free tier: 8K tokens/min (~2 proposals/min); bursts wait once (≤ 20 s) or fall back to
+  Gemini Flash Lite, whose proposals are weaker (validator catches the errors; more manual edits).
+- The Gemini key belongs to the shared Google Cloud project "voice-agents"; another app consumes
+  the same quota. A dedicated project/key is recommended.
 - Proposal generation is synchronous inside the HTTP request (minutes with Gemini). Durable,
   asynchronous runs arrive with Temporal (Phase 5).
 - Custom-field proposals are approved into the plan but not created anywhere yet (Phase 4).
@@ -272,6 +282,9 @@ Required evidence: demo script/recording; CI green.
 ## Decisions (resolved by the user, 2026-10-12)
 - **D1 LLM provider — RESOLVED:** Gemini primary via the Google Python SDK (`google-genai`), Groq
   optional fallback, provider-neutral module `backend/app/agent/llm_client.py`.
+  **Revised 2026-10-13 by the user:** Groq (`openai/gpt-oss-120b`) primary, Gemini
+  (`gemini-3.5-flash-lite`) backup, after a live comparison of three models — see
+  `docs/evidence/README.md`.
 - **D2 Blueprint in repo — RESOLVED:** committed as [`docs/BLUEPRINT.md`](docs/BLUEPRINT.md).
 - **D3 Version control — RESOLVED:** git repo, remote
   `https://github.com/kshitij189/Legal-CMS-Onboarding-Agent.git`. Commit and push after every phase.
