@@ -316,6 +316,11 @@ Keep this section current as phases add commands.
   another app.
   Errors are classified (`quota`, `transient`, `configuration`, `invalid_output`, `provider`);
   a failing provider falls through to the next and the fallback is recorded.
+- Token pacing: `TokenRateLimiter` (shared per process, since clients are built per request) tracks
+  tokens spent in the last 60 s and makes a Groq call wait *before* it would exceed
+  `GROQ_TOKENS_PER_MINUTE` (default 7000; 0 disables). An idle system never waits; a second
+  proposal right after the first waits up to ~1 min. It is per process, so the 429 handling stays as
+  the backstop for other processes sharing the key.
 - Gemini rejects `additionalProperties`, `default`, `min/maxLength`, `min/maxItems` in function
   declarations — they are stripped for Gemini only; Pydantic still enforces them on the result.
   `gemini-3.8-flash` (20 req/day, 2–4 min latency) proved impractical; compare models with the

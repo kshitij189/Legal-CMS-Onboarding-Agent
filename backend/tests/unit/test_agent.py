@@ -12,11 +12,13 @@ from app.agent.llm_client import (
     GeminiClient,
     GroqClient,
     LLMError,
+    TokenRateLimiter,
     build_llm_client,
 )
 from app.agent.mapping_agent import find_untrusted_fields, propose_mappings
 from app.agent.prompts import SYSTEM_PROMPT, build_user_message, clean_text, detect_instructions
 from app.agent.tool_registry import LLM_TOOLS, PROPOSE_FIELD_MAPPINGS, inline_json_schema
+from app.config import get_settings
 from app.schemas.mapping import ProposeFieldMappingsArgs
 from app.schemas.normalized import DataType, NormalizedField
 from tests.mapping_helpers import FakeLLM, ground_truth_proposals, source_schema, target_schema
@@ -267,6 +269,7 @@ def test_fallback_raises_the_last_error_when_all_fail() -> None:
 
 
 def test_build_llm_client_respects_keys_and_order(monkeypatch: pytest.MonkeyPatch) -> None:
+    get_settings()  # loads .env once, so it cannot restore the keys deleted below
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     with pytest.raises(LLMError) as exc:
@@ -298,6 +301,96 @@ def test_groq_does_not_wait_for_long_rate_limits() -> None:
     with pytest.raises(LLMError) as exc:
         client.call_tool("s", "u", PROPOSE_FIELD_MAPPINGS)
     assert exc.value.category == "quota" and waits == []
+
+
+# --- token pacing -------------------------------------------------------------------------------
+
+
+class _FakeTime:
+    """A clock whose sleep advances it, so pacing is tested without real waiting."""
+
+    def __init__(self) -> None:
+        self.now = 1000.0
+        self.waits: list[float] = []
+
+    def clock(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.waits.append(seconds)
+        self.now += seconds
+
+
+def _limiter(budget: int = 8000) -> tuple[TokenRateLimiter, _FakeTime]:
+    fake = _FakeTime()
+    return TokenRateLimiter(budget, clock=fake.clock, sleep=fake.sleep), fake
+
+
+def test_limiter_never_delays_while_under_budget() -> None:
+    limiter, fake = _limiter()
+    limiter.acquire(3000)
+    limiter.acquire(3000)
+    assert fake.waits == []
+
+
+def test_limiter_waits_only_until_enough_old_spend_has_aged_out() -> None:
+    limiter, fake = _limiter()
+    first = limiter.acquire(5000)
+    fake.now += 10
+    limiter.settle(first, 5000)
+    limiter.acquire(2000)  # 7,000 in the window: still fits
+    limiter.acquire(3000)  # 10,000 would not: wait for the first 5,000 to expire (50 s left)
+    assert fake.waits == [50.0]
+
+
+def test_limiter_uses_the_real_token_count_instead_of_the_estimate() -> None:
+    limiter, fake = _limiter()
+    reservation = limiter.acquire(7000)
+    limiter.settle(reservation, 1000)  # the call turned out to be small
+    limiter.acquire(6000)
+    assert fake.waits == []
+
+
+def test_limiter_lets_a_call_larger_than_the_budget_through() -> None:
+    limiter, fake = _limiter(budget=1000)
+    limiter.acquire(5000)
+    assert fake.waits == []
+    limiter.acquire(10)  # but the next one waits for that spend to age out
+    assert fake.waits == [60.0]
+
+
+def test_groq_client_paces_back_to_back_calls() -> None:
+    limiter, fake = _limiter(budget=2500)
+    reply = _groq_reply(GOOD_ARGS)
+    body = json.loads(reply.content)
+    body["usage"] = {"prompt_tokens": 1500, "completion_tokens": 700, "total_tokens": 2200}
+    client = GroqClient(
+        "key",
+        "m",
+        5,
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, json=body)),
+        limiter=limiter,
+    )
+    client.call_tool("s", "u", PROPOSE_FIELD_MAPPINGS)
+    assert fake.waits == []  # the first call is never delayed
+    fake.now += 5
+    client.call_tool("s", "u", PROPOSE_FIELD_MAPPINGS)
+    assert fake.waits == [55.0]  # 2,200 + the next estimate exceeds 2,500: wait out the minute
+
+
+def test_build_llm_client_shares_one_limiter_and_can_disable_pacing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GROQ_API_KEY", "k")
+    monkeypatch.setenv("LLM_PROVIDERS", "groq")
+    monkeypatch.setenv("GROQ_TOKENS_PER_MINUTE", "7000")
+    first, second = build_llm_client(), build_llm_client()
+    assert isinstance(first, FallbackLLMClient) and isinstance(second, FallbackLLMClient)
+    assert first._clients[0]._limiter is second._clients[0]._limiter  # type: ignore[attr-defined]
+    monkeypatch.setenv("GROQ_TOKENS_PER_MINUTE", "0")
+    off = build_llm_client()
+    assert isinstance(off, FallbackLLMClient)
+    assert off._clients[0]._limiter is None  # type: ignore[attr-defined]
 
 
 def test_default_provider_order_is_groq_then_gemini(monkeypatch: pytest.MonkeyPatch) -> None:

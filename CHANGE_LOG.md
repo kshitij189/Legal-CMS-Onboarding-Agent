@@ -577,3 +577,32 @@ with another application (279 Flash Lite requests that day were not from this pr
 **Known issues / limitations**
 - 5 high npm advisories in dev-only `braces` (eslint-config-next tooling).
 - Live-LLM tests and the demo script are not run in CI.
+
+---
+
+## Post-Phase 7 — Groq token pacing (2026-10-14, requested by the user)
+
+**Changes**
+- `TokenRateLimiter` in `backend/app/agent/llm_client.py`: sliding 60 s window of tokens spent;
+  a Groq call waits before it would exceed `GROQ_TOKENS_PER_MINUTE` (default 7000, 0 disables),
+  then replaces its estimate with the provider's reported `total_tokens`. One instance per process.
+  The existing wait-once-on-429 handling remains as the backstop.
+- Fixed a test-isolation bug: `test_build_llm_client_respects_keys_and_order` failed when run alone
+  (first `get_settings()` call inside the test re-loaded `.env` after the keys were deleted); it
+  now loads settings first.
+
+**Why:** Groq's binding free-tier limit is 8,000 tokens/min (not the 1,000 requests/day); a proposal
+costs ~3,700-3,900 tokens, so bursts hit 429s and fell back to the weaker Gemini model.
+
+**Tests executed (actual results)**
+- `tests/unit/test_agent.py`: 34 passed (6 new, fake clock). Mutation (limiter never waits) → 3 fail;
+  restored → pass. ruff, format and `mypy --strict` clean.
+- Live Groq, three back-to-back proposals (Firms A, B, C, Groq only): no 429, no fallback;
+  durations 4.3 s, 60.2 s, 59.8 s (the 2nd and 3rd waited ~56 s).
+
+**Known issues / limitations**
+- At 7000, two ~3,800-token proposals do not fit in one window, so consecutive proposals are about
+  a minute apart. Raising the budget towards 8000 is faster but risks occasional 429s.
+- Pacing is per process: the backend, worker and evaluation runner each keep their own window.
+- The wait happens inside the HTTP request; whether the dashboard's Next.js proxy cuts a ~60 s
+  request has not been tested.

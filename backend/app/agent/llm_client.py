@@ -9,6 +9,7 @@ never logged or placed in prompts.
 import json
 import logging
 import os
+import threading
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
@@ -145,6 +146,74 @@ def _classify_gemini(exc: Exception) -> LLMError:
     return LLMError("provider", f"Gemini request failed ({code}).", "gemini")
 
 
+@dataclass
+class _Spend:
+    at: float
+    tokens: int
+
+
+class TokenRateLimiter:
+    """Stays under a tokens-per-minute budget by waiting *before* a call instead of after a 429.
+
+    Tokens spent in the last minute are tracked; a call that would exceed the budget waits until
+    enough older spend has aged out. An idle limiter never delays anything. One instance is shared
+    per process (`_shared_limiter`) because a client is built for every request.
+    """
+
+    WINDOW_SECONDS = 60.0
+
+    def __init__(
+        self,
+        tokens_per_minute: int,
+        clock: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
+        self._budget = tokens_per_minute
+        self._clock = clock
+        self._sleep = sleep
+        self._lock = threading.Lock()
+        self._spend: list[_Spend] = []
+
+    def acquire(self, estimate: int) -> _Spend:
+        """Blocks until `estimate` tokens fit in the window, then reserves them."""
+        while True:
+            with self._lock:
+                now = self._clock()
+                self._spend = [s for s in self._spend if now - s.at < self.WINDOW_SECONDS]
+                excess = sum(s.tokens for s in self._spend) + estimate - self._budget
+                # A single call larger than the whole budget must still be allowed through.
+                if excess <= 0 or not self._spend:
+                    reservation = _Spend(now, estimate)
+                    self._spend.append(reservation)
+                    return reservation
+                freed = 0
+                for s in self._spend:
+                    freed += s.tokens
+                    if freed >= excess:
+                        wait = s.at + self.WINDOW_SECONDS - now
+                        break
+            log.info("Groq token budget reached; waiting %.0f s before the next call", wait)
+            self._sleep(wait)
+
+    def settle(self, reservation: _Spend, actual_tokens: int) -> None:
+        """Replaces the estimate with what the provider reported."""
+        with self._lock:
+            reservation.tokens = actual_tokens
+
+
+_limiters: dict[int, TokenRateLimiter] = {}
+_limiters_lock = threading.Lock()
+
+
+def _shared_limiter(tokens_per_minute: int) -> TokenRateLimiter:
+    with _limiters_lock:
+        return _limiters.setdefault(tokens_per_minute, TokenRateLimiter(tokens_per_minute))
+
+
+# Proposals so far produced 600-2,000 output tokens; used only until the real count is known.
+EXPECTED_OUTPUT_TOKENS = 1500
+
+
 class GroqClient:
     """Groq's OpenAI-compatible chat completions API over httpx (no extra SDK)."""
 
@@ -158,12 +227,14 @@ class GroqClient:
         timeout_seconds: float,
         transport: httpx.BaseTransport | None = None,
         sleep: Callable[[float], None] = time.sleep,
+        limiter: TokenRateLimiter | None = None,
     ) -> None:
         self.model = model
         self._api_key = api_key
         self._timeout = timeout_seconds
         self._transport = transport
         self._sleep = sleep
+        self._limiter = limiter
 
     def _post(self, payload: dict[str, Any]) -> httpx.Response:
         try:
@@ -197,6 +268,10 @@ class GroqClient:
             ],
             "tool_choice": {"type": "function", "function": {"name": tool.name}},
         }
+        reservation = None
+        if self._limiter is not None:
+            estimate = len(json.dumps(payload)) // 3 + EXPECTED_OUTPUT_TOKENS
+            reservation = self._limiter.acquire(estimate)
         response = self._post(payload)
         if response.status_code == 429:
             # Per-minute rate limits clear quickly: wait once if the server says it is short.
@@ -223,6 +298,8 @@ class GroqClient:
                 "invalid_output", f"Expected one '{tool.name}' call, got {len(matching)}.", "groq"
             )
         usage = body.get("usage") or {}
+        if self._limiter is not None and reservation is not None and usage.get("total_tokens"):
+            self._limiter.settle(reservation, int(usage["total_tokens"]))
         return ToolCallResult(
             arguments=_parse_arguments(tool, matching[0]["function"]["arguments"], "groq"),
             provider="groq",
@@ -291,11 +368,14 @@ def build_llm_client() -> LLMClient:
                 )
             )
         elif name == "groq" and os.environ.get("GROQ_API_KEY"):
+            # Free tier is 8,000 tokens/min; stay a little under it. 0 disables pacing.
+            budget = int(os.environ.get("GROQ_TOKENS_PER_MINUTE", "7000"))
             clients.append(
                 GroqClient(
                     os.environ["GROQ_API_KEY"],
                     os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b"),
                     timeout,
+                    limiter=_shared_limiter(budget) if budget > 0 else None,
                 )
             )
     return FallbackLLMClient(clients)
