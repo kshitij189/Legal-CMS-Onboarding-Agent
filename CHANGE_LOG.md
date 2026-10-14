@@ -604,5 +604,15 @@ costs ~3,700-3,900 tokens, so bursts hit 429s and fell back to the weaker Gemini
 - At 7000, two ~3,800-token proposals do not fit in one window, so consecutive proposals are about
   a minute apart. Raising the budget towards 8000 is faster but risks occasional 429s.
 - Pacing is per process: the backend, worker and evaluation runner each keep their own window.
-- The wait happens inside the HTTP request; whether the dashboard's Next.js proxy cuts a ~60 s
-  request has not been tested.
+- The wait happens inside the HTTP request, so generation can take ~1-3 min. The dashboard waits for
+  it (see below), but it is still a synchronous request, not a background job.
+
+### Follow-up: dashboard proxy timeout (2026-10-14)
+- **Found by test:** with a stand-in backend that answers after N seconds, the Next.js `/api` proxy
+  returned a 500 after 30 s (35 s and 70 s requests both failed at ~30 s; a 5 s request passed). The
+  backend would have finished and saved the proposals while the reviewer saw an error.
+- **Fix:** `experimental.proxyTimeout: 300_000` in `frontend/next.config.ts` (covers 2 providers x
+  90 s + the 20 s rate-limit wait + a pacing wait). Same test after the fix: 5 s, 35 s and 70 s
+  requests all returned 200 after their full delay.
+- Verified manually (the dashboard has no automated test framework); `tsc`, ESLint and `next build`
+  clean. Stand-in servers were stopped and the dashboard rebuilt with its default backend URL.
